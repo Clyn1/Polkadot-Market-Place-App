@@ -32,12 +32,6 @@ class HomeScreen extends StatelessWidget {
           return ProductCard(product: products[index]);
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Navigate to create product (next step)
-        },
-        child: const Icon(Icons.add),
-      ),
     );
   }
 }

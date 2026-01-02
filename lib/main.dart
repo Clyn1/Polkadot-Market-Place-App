@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'features/home/home_screen.dart';
 
@@ -13,6 +12,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'Polkadot Marketplace',
+      theme: ThemeData(
+        primarySwatch: Colors.deepPurple,
+      ),
       home: HomeScreen(),
     );
   }
