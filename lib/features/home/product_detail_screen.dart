@@ -6,6 +6,35 @@ class ProductDetailScreen extends StatelessWidget {
 
   const ProductDetailScreen({super.key, required this.product});
 
+  void _showBuyDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Confirm Purchase'),
+        content: Text(
+          'Buy ${product.name} for KES ${product.price}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Purchase successful (mock)'),
+                ),
+              );
+            },
+            child: const Text('Buy'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -20,45 +49,30 @@ class ProductDetailScreen extends StatelessWidget {
             Text(
               product.name,
               style: const TextStyle(
-                fontSize: 26,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
-
+            const SizedBox(height: 16),
             Text(
               'Price: KES ${product.price}',
               style: const TextStyle(fontSize: 18),
             ),
-            const SizedBox(height: 12),
-
+            const SizedBox(height: 8),
             Text(
-              'Farmer Wallet:',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
-              ),
+              'Owner Address:',
+              style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 4),
-
             Text(
               product.owner,
               style: const TextStyle(fontSize: 14),
             ),
-
             const Spacer(),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  // NEXT STEP: blockchain transaction
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Buying feature coming next 🚜'),
-                    ),
-                  );
-                },
+                onPressed: () => _showBuyDialog(context),
                 child: const Text('Buy Product'),
               ),
             ),
