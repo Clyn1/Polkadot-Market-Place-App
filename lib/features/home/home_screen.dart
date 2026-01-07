@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/product.dart';
+import '../../services/api_service.dart'; // ✅ Added import
 import 'product_card.dart';
 import 'add_product_screen.dart';
 import 'search_screen.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-
-// Top-level constant for the API URL (best practice)
-const String apiUrl = 'http://127.0.0.1:8080/api';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -17,6 +13,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  // ✅ ApiService instance
+  final _apiService = ApiService();
+
   // Loading state
   bool isLoading = true;
   bool isRefreshing = false;
@@ -48,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  // Real API call to fetch products from your Rust backend
+  // ✅ Updated: Using ApiService instead of direct http calls
   Future<void> _loadProducts() async {
     if (!isRefreshing) {
       setState(() {
@@ -62,33 +61,23 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
 
     try {
-      final response = await http.get(Uri.parse('$apiUrl/products'));
-      
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        final List<dynamic> productsJson = jsonData['data'];
-        
-        final fetchedProducts = productsJson
-            .map((json) => Product.fromJson(json))
-            .toList();
+      // Real API call via ApiService
+      final fetchedProducts = await _apiService.getAllProducts();
 
-        if (mounted) {
-          setState(() {
-            products = fetchedProducts;
-            isLoading = false;
-            isRefreshing = false;
-          });
-          _animationController.forward();
-        }
-      } else {
-        throw Exception('Failed to load products: ${response.statusCode}');
+      if (mounted) {
+        setState(() {
+          products = fetchedProducts;
+          isLoading = false;
+          isRefreshing = false;
+        });
+        _animationController.forward();
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           isLoading = false;
           isRefreshing = false;
-          errorMessage = 'Failed to load products: ${e.toString()}';
+          errorMessage = 'Failed to connect to backend: ${e.toString()}';
         });
       }
     }

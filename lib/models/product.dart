@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'; // Optional, for better toString
+
 class Product {
   final String id;
   final String name;
@@ -17,7 +19,7 @@ class Product {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  // Convert Product to JSON (for future API/blockchain integration)
+  // Convert Product to JSON (for sending to backend)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -25,12 +27,12 @@ class Product {
       'price': price,
       'owner': owner,
       'description': description,
-      'imageUrl': imageUrl,
-      'createdAt': createdAt?.toIso8601String(),
+      'image_url': imageUrl, // Matches Rust backend field
+      'created_at': createdAt?.toIso8601String(),
     };
   }
 
-  // Create Product from JSON
+  // Create Product from JSON (received from backend)
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
       id: json['id'] as String,
@@ -38,14 +40,14 @@ class Product {
       price: (json['price'] as num).toDouble(),
       owner: json['owner'] as String,
       description: json['description'] as String?,
-      imageUrl: json['imageUrl'] as String?,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
+      imageUrl: json['image_url'] as String?,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
           : null,
     );
   }
 
-  // Create a copy with updated fields
+  // Copy with optional overrides
   Product copyWith({
     String? id,
     String? name,

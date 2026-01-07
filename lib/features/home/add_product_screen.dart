@@ -2,7 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/product.dart';
-import '../../services/image_service.dart';
+import '../../services/api_service.dart';     // ← Added for backend call
+import '../../services/image_service.dart';    // For IPFS upload
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({Key? key}) : super(key: key);
@@ -17,15 +18,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _priceController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _ownerController = TextEditingController();
+
+  // Services
   final _imageService = ImageService();
-  
+  final _apiService = ApiService(); // ← New: for communicating with Rust backend
+
   File? _selectedImage;
   bool _isUploading = false;
-  String? _uploadedImageUrl;
 
   @override
   void initState() {
     super.initState();
+    // Pre-fill with your test wallet address
     _ownerController.text = '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY';
   }
 
@@ -89,46 +93,50 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Future<void> _submitProduct() async {
-    if (_formKey.currentState!.validate()) {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      // Step 1: Upload image to IPFS (if selected)
+      String? imageUrl;
+      if (_selectedImage != null) {
+        imageUrl = await _imageService.uploadImageAndGetUrl(_selectedImage!);
+        if (imageUrl == null) {
+          throw Exception('Failed to upload image to IPFS');
+        }
+      }
+
+      // Step 2: Create product on the Rust backend
+      final newProduct = await _apiService.createProduct(
+        name: _nameController.text.trim(),
+        price: double.parse(_priceController.text.trim()),
+        owner: _ownerController.text.trim(),
+        description: _descriptionController.text.isEmpty
+            ? null
+            : _descriptionController.text.trim(),
+        imageUrl: imageUrl,
+      );
+
       setState(() {
-        _isUploading = true;
+        _isUploading = false;
       });
 
-      try {
-        // Upload image to IPFS if selected
-        String? imageUrl;
-        if (_selectedImage != null) {
-          imageUrl = await _imageService.uploadImageAndGetUrl(_selectedImage!);
-          if (imageUrl == null) {
-            throw Exception('Failed to upload image to IPFS');
-          }
-        }
-
-        // Create product
-        final newProduct = Product(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: _nameController.text,
-          price: double.parse(_priceController.text),
-          owner: _ownerController.text,
-          description: _descriptionController.text.isEmpty 
-              ? null 
-              : _descriptionController.text,
-          imageUrl: imageUrl,
-        );
-
-        setState(() {
-          _isUploading = false;
-        });
-
+      if (newProduct != null) {
+        // Return the product created by the backend to HomeScreen
         Navigator.pop(context, newProduct);
 
-        _showSnackBar('${newProduct.name} added successfully!');
-      } catch (e) {
-        setState(() {
-          _isUploading = false;
-        });
-        _showSnackBar('Error: ${e.toString()}', isError: true);
+        _showSnackBar('${newProduct.name} listed successfully!');
+      } else {
+        throw Exception('Server did not return a valid product');
       }
+    } catch (e) {
+      setState(() {
+        _isUploading = false;
+      });
+      _showSnackBar('Error: ${e.toString()}', isError: true);
     }
   }
 
@@ -137,6 +145,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -189,10 +198,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   decoration: BoxDecoration(
                     color: Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.grey.shade400,
-                      width: 2,
-                    ),
+                    border: Border.all(color: Colors.grey.shade400, width: 2),
                     image: _selectedImage != null
                         ? DecorationImage(
                             image: FileImage(_selectedImage!),
@@ -204,27 +210,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.add_photo_alternate,
-                              size: 64,
-                              color: Colors.grey.shade400,
-                            ),
+                            Icon(Icons.add_photo_alternate, size: 64, color: Colors.grey.shade400),
                             const SizedBox(height: 8),
-                            Text(
-                              'Tap to add product image',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 16,
-                              ),
-                            ),
+                            Text('Tap to add product image', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
                             const SizedBox(height: 4),
-                            Text(
-                              'Image will be stored on IPFS',
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontSize: 12,
-                              ),
-                            ),
+                            Text('Image will be stored on IPFS', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
                           ],
                         )
                       : Stack(
@@ -235,14 +225,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                               child: CircleAvatar(
                                 backgroundColor: Colors.black54,
                                 child: IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    color: Colors.white,
-                                  ),
+                                  icon: const Icon(Icons.close, color: Colors.white),
                                   onPressed: () {
-                                    setState(() {
-                                      _selectedImage = null;
-                                    });
+                                    setState(() => _selectedImage = null);
                                   },
                                 ),
                               ),
@@ -261,18 +246,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   labelText: 'Product Name',
                   hintText: 'Enter product name',
                   prefixIcon: const Icon(Icons.shopping_bag),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   filled: true,
                   fillColor: Colors.grey.shade50,
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a product name';
-                  }
-                  return null;
-                },
+                validator: (value) => value?.trim().isEmpty ?? true ? 'Please enter a product name' : null,
               ),
 
               const SizedBox(height: 16),
@@ -285,22 +263,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   labelText: 'Price (DOT)',
                   hintText: 'Enter price in DOT',
                   prefixIcon: const Icon(Icons.currency_bitcoin),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   filled: true,
                   fillColor: Colors.grey.shade50,
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a price';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Please enter a valid number';
-                  }
-                  if (double.parse(value) <= 0) {
-                    return 'Price must be greater than 0';
-                  }
+                  if (value == null || value.isEmpty) return 'Please enter a price';
+                  final num = double.tryParse(value);
+                  if (num == null || num <= 0) return 'Please enter a valid positive number';
                   return null;
                 },
               ),
@@ -316,9 +286,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   hintText: 'Enter product description',
                   prefixIcon: const Icon(Icons.description),
                   alignLabelWithHint: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   filled: true,
                   fillColor: Colors.grey.shade50,
                 ),
@@ -333,23 +301,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   labelText: 'Owner Wallet Address',
                   hintText: 'Polkadot address',
                   prefixIcon: const Icon(Icons.account_balance_wallet),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   filled: true,
                   fillColor: Colors.grey.shade50,
                 ),
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                ),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a wallet address';
-                  }
-                  if (value.length < 20) {
-                    return 'Please enter a valid Polkadot address';
-                  }
+                  if (value == null || value.trim().isEmpty) return 'Please enter a wallet address';
+                  if (value.length < 20) return 'Invalid Polkadot address';
                   return null;
                 },
               ),
@@ -363,9 +322,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   backgroundColor: Colors.purple,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 2,
                 ),
                 child: _isUploading
@@ -375,22 +332,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
                           SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                           ),
                           SizedBox(width: 12),
-                          Text(
-                            'Uploading to IPFS...',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
+                          Text('Uploading...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         ],
                       )
-                    : const Text(
-                        'Create Product Listing',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
+                    : const Text('Create Product Listing', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
 
               const SizedBox(height: 16),
@@ -400,11 +348,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 'Note: Image will be uploaded to IPFS (decentralized storage). '
                 'In blockchain version, this will require wallet signature and gas fees.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                  fontStyle: FontStyle.italic,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
               ),
             ],
           ),
