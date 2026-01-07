@@ -3,6 +3,11 @@ import '../../models/product.dart';
 import 'product_card.dart';
 import 'add_product_screen.dart';
 import 'search_screen.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+// Top-level constant for the API URL (best practice)
+const String apiUrl = 'http://127.0.0.1:8080/api';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -43,57 +48,49 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  // Load products (mock data for now)
+  // Real API call to fetch products from your Rust backend
   Future<void> _loadProducts() async {
     if (!isRefreshing) {
       setState(() {
         isLoading = true;
         errorMessage = null;
       });
+    } else {
+      setState(() {
+        isRefreshing = true;
+      });
     }
 
     try {
-      // Simulate network delay
-      await Future.delayed(const Duration(seconds: 2));
+      final response = await http.get(Uri.parse('$apiUrl/products'));
+      
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        final List<dynamic> productsJson = jsonData['data'];
+        
+        final fetchedProducts = productsJson
+            .map((json) => Product.fromJson(json))
+            .toList();
 
-      // Mock data
-      final mockProducts = [
-        Product(
-          id: '1',
-          name: 'Maize',
-          price: 120,
-          owner: '5F3sa2TJcP...',
-          description: 'Premium quality maize harvested this season',
-        ),
-        Product(
-          id: '2',
-          name: 'Beans',
-          price: 200,
-          owner: '5DAAnrj7V...',
-          description: 'Organic beans, rich in protein',
-        ),
-        Product(
-          id: '3',
-          name: 'Coffee Beans',
-          price: 350,
-          owner: '5GrwvaEF5z...',
-          description: 'Arabica coffee beans from high altitude farms',
-        ),
-      ];
-
-      setState(() {
-        products = mockProducts;
-        isLoading = false;
-        isRefreshing = false;
-      });
-
-      _animationController.forward();
+        if (mounted) {
+          setState(() {
+            products = fetchedProducts;
+            isLoading = false;
+            isRefreshing = false;
+          });
+          _animationController.forward();
+        }
+      } else {
+        throw Exception('Failed to load products: ${response.statusCode}');
+      }
     } catch (e) {
-      setState(() {
-        isLoading = false;
-        isRefreshing = false;
-        errorMessage = 'Failed to load products: ${e.toString()}';
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          isRefreshing = false;
+          errorMessage = 'Failed to load products: ${e.toString()}';
+        });
+      }
     }
   }
 

@@ -1,0 +1,35 @@
+[package]
+name = "polkadot_marketplace_backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web framework
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Environment variables
+dotenv = "0.15"
+
+# Utilities
+uuid = { version = "1.6", features = ["serde", "v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Future Polkadot integration (commented out for now)
+# subxt = "0.35"
+# sp-core = "31.0"
+# sp-keyring = "31.0"
+
+[dev-dependencies]
+# For testing
+reqwest = { version = "0.11", features = ["json"] }
