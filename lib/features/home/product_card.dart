@@ -31,32 +31,36 @@ class ProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Image Placeholder with Hero animation
+            // Product Image
             Hero(
               tag: 'product-${product.id}',
               child: Container(
                 height: 200,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.purple.shade300,
-                      Colors.blue.shade400,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12),
                     topRight: Radius.circular(12),
                   ),
                 ),
-                child: Center(
-                  child: Icon(
-                    Icons.shopping_bag,
-                    size: 64,
-                    color: Colors.white.withOpacity(0.7),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
                   ),
+                  child: product.imageUrl != null
+                      ? Image.network(
+                          product.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildPlaceholder();
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return _buildPlaceholder(isLoading: true);
+                          },
+                        )
+                      : _buildPlaceholder(),
                 ),
               ),
             ),
@@ -77,7 +81,7 @@ class ProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   
-                  // Price with animation
+                  // Price
                   Row(
                     children: [
                       const Icon(
@@ -95,7 +99,6 @@ class ProductCard extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      // View details hint
                       Icon(
                         Icons.arrow_forward_ios,
                         size: 16,
@@ -105,7 +108,7 @@ class ProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   
-                  // Owner Address (shortened)
+                  // Owner Address
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -144,7 +147,32 @@ class ProductCard extends StatelessWidget {
     );
   }
 
-  // Helper function to shorten blockchain addresses
+  Widget _buildPlaceholder({bool isLoading = false}) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.purple.shade300,
+            Colors.blue.shade400,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: isLoading
+            ? const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              )
+            : Icon(
+                Icons.shopping_bag,
+                size: 64,
+                color: Colors.white.withOpacity(0.7),
+              ),
+      ),
+    );
+  }
+
   String _shortenAddress(String address) {
     if (address.length <= 13) return address;
     return '${address.substring(0, 6)}...${address.substring(address.length - 4)}';

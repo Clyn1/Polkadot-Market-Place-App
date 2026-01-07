@@ -41,3 +41,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# API Key Hiding (New Section Added)
+# Ignore the .env file that stores local secrets
+*.env
+# Ignore the generated file that contains obfuscated keys
+/lib/env.g.dart
