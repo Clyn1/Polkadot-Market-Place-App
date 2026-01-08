@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/product.dart';
+import 'full_screen_image_viewer.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   final Product product;
@@ -15,9 +16,8 @@ class ProductDetailScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // Zoomable Image Header
           SliverAppBar(
-            expandedHeight: 400, // ✅ Larger image area
+            expandedHeight: 400,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
@@ -35,7 +35,6 @@ class ProductDetailScreen extends StatelessWidget {
               ),
               background: GestureDetector(
                 onTap: () {
-                  // ✅ Tap to zoom full screen
                   if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
                     _showFullScreenImage(context);
                   }
@@ -57,7 +56,6 @@ class ProductDetailScreen extends StatelessWidget {
                                 return _buildPlaceholder();
                               },
                             ),
-                            // Zoom indicator
                             Positioned(
                               bottom: 16,
                               right: 16,
@@ -97,15 +95,12 @@ class ProductDetailScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          // Product Details
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Price Section
                   Card(
                     elevation: 2,
                     child: Padding(
@@ -142,20 +137,14 @@ class ProductDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  
                   const SizedBox(height: 24),
-
-                  // Product ID
                   _buildInfoSection(
                     context,
                     'Product ID',
                     product.id,
                     Icons.tag,
                   ),
-
                   const SizedBox(height: 16),
-
-                  // Owner Section
                   _buildInfoSection(
                     context,
                     'Owner Address',
@@ -163,10 +152,7 @@ class ProductDetailScreen extends StatelessWidget {
                     Icons.account_balance_wallet,
                     isCopyable: true,
                   ),
-
                   const SizedBox(height: 24),
-
-                  // Description Section
                   const Text(
                     'Description',
                     style: TextStyle(
@@ -185,10 +171,7 @@ class ProductDetailScreen extends StatelessWidget {
                       height: 1.5,
                     ),
                   ),
-
                   const SizedBox(height: 24),
-
-                  // Blockchain Info Card
                   Card(
                     color: Colors.purple.shade50,
                     child: Padding(
@@ -226,7 +209,6 @@ class ProductDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 80),
                 ],
               ),
@@ -234,8 +216,6 @@ class ProductDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-
-      // Buy Button
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -278,27 +258,13 @@ class ProductDetailScreen extends StatelessWidget {
     );
   }
 
-  // ✅ Full screen zoomable image viewer
   void _showFullScreenImage(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-          ),
-          body: InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 4.0,
-            child: Center(
-              child: Image.network(
-                product.imageUrl!,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
+        builder: (context) => FullScreenImageViewer(
+          imageUrl: product.imageUrl!,
+          productName: product.name,
         ),
       ),
     );

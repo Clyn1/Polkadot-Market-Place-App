@@ -9,14 +9,11 @@ use serde::Deserialize;
 use crate::models::{ApiResponse, CreateProductRequest, UpdateProductRequest};
 use crate::services::ProductService;
 
-/// Query parameters for search
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
     q: String,
 }
 
-/// Get all products
-/// GET /api/products
 pub async fn get_products(
     State(service): State<ProductService>,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
@@ -29,8 +26,6 @@ pub async fn get_products(
     }
 }
 
-/// Get a single product by ID
-/// GET /api/products/:id
 pub async fn get_product(
     State(service): State<ProductService>,
     Path(id): Path<String>,
@@ -44,8 +39,6 @@ pub async fn get_product(
     }
 }
 
-/// Create a new product
-/// POST /api/products
 pub async fn create_product(
     State(service): State<ProductService>,
     Json(request): Json<CreateProductRequest>,
@@ -62,8 +55,6 @@ pub async fn create_product(
     }
 }
 
-/// Update a product
-/// PUT /api/products/:id
 pub async fn update_product(
     State(service): State<ProductService>,
     Path(id): Path<String>,
@@ -81,8 +72,6 @@ pub async fn update_product(
     }
 }
 
-/// Delete a product
-/// DELETE /api/products/:id
 pub async fn delete_product(
     State(service): State<ProductService>,
     Path(id): Path<String>,
@@ -99,8 +88,6 @@ pub async fn delete_product(
     }
 }
 
-/// Search products
-/// GET /api/products/search?q=query
 pub async fn search_products(
     State(service): State<ProductService>,
     Query(params): Query<SearchQuery>,
