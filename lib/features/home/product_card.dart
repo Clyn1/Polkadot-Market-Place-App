@@ -31,14 +31,14 @@ class ProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Image
+            // Product Image - LARGER SIZE
             Hero(
               tag: 'product-${product.id}',
               child: Container(
-                height: 200,
+                height: 280, // ✅ Increased from 200 to 280
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.only(
+                decoration: const BoxDecoration(
+                  borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(12),
                     topRight: Radius.circular(12),
                   ),
@@ -48,16 +48,17 @@ class ProductCard extends StatelessWidget {
                     topLeft: Radius.circular(12),
                     topRight: Radius.circular(12),
                   ),
-                  child: product.imageUrl != null
+                  child: product.imageUrl != null && product.imageUrl!.isNotEmpty
                       ? Image.network(
                           product.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return _buildPlaceholder();
-                          },
+                          fit: BoxFit.cover, // ✅ Covers entire area
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
                             return _buildPlaceholder(isLoading: true);
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            debugPrint('Image load error: $error');
+                            return _buildPlaceholder();
                           },
                         )
                       : _buildPlaceholder(),
@@ -78,8 +79,24 @@ class ProductCard extends StatelessWidget {
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
+                  
+                  // Description (if available)
+                  if (product.description != null && product.description!.isNotEmpty) ...[
+                    Text(
+                      product.description!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   
                   // Price
                   Row(
@@ -161,8 +178,21 @@ class ProductCard extends StatelessWidget {
       ),
       child: Center(
         child: isLoading
-            ? const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading image...',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               )
             : Icon(
                 Icons.shopping_bag,

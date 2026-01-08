@@ -5,6 +5,12 @@ import '../../models/product.dart';
 import '../../services/api_service.dart';     // ← Added for backend call
 import '../../services/image_service.dart';    // For IPFS upload
 
+// At the top of _AddProductScreenState
+final _imageService = ImageService(
+  apiKey: const String.fromEnvironment('PINATA_API_KEY'),
+  secretKey: const String.fromEnvironment('PINATA_SECRET_KEY'),
+);
+
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({Key? key}) : super(key: key);
 

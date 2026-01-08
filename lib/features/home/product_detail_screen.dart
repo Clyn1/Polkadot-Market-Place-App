@@ -15,9 +15,9 @@ class ProductDetailScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // App Bar with Image and Hero Animation
+          // Zoomable Image Header
           SliverAppBar(
-            expandedHeight: 300,
+            expandedHeight: 400, // ✅ Larger image area
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
@@ -33,27 +33,66 @@ class ProductDetailScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              background: Hero(
-                tag: 'product-${product.id}',
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.purple.shade300,
-                        Colors.blue.shade400,
-                        Colors.cyan.shade300,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.shopping_bag,
-                      size: 120,
-                      color: Colors.white.withOpacity(0.7),
-                    ),
-                  ),
+              background: GestureDetector(
+                onTap: () {
+                  // ✅ Tap to zoom full screen
+                  if (product.imageUrl != null && product.imageUrl!.isNotEmpty) {
+                    _showFullScreenImage(context);
+                  }
+                },
+                child: Hero(
+                  tag: 'product-${product.id}',
+                  child: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                      ? Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.network(
+                              product.imageUrl!,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return _buildPlaceholder(isLoading: true);
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return _buildPlaceholder();
+                              },
+                            ),
+                            // Zoom indicator
+                            Positioned(
+                              bottom: 16,
+                              right: 16,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.zoom_in,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Tap to zoom',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : _buildPlaceholder(),
                 ),
               ),
             ),
@@ -139,8 +178,7 @@ class ProductDetailScreen extends StatelessWidget {
                   Text(
                     product.description ?? 
                     'This is a premium product available on the Polkadot Marketplace. '
-                    'All transactions are secured by blockchain technology, ensuring '
-                    'transparency and trust between buyers and sellers.',
+                    'All transactions are secured by blockchain technology.',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey.shade700,
@@ -149,17 +187,6 @@ class ProductDetailScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 24),
-
-                  // Created Date (if available)
-                  if (product.createdAt != null) ...[
-                    _buildInfoSection(
-                      context,
-                      'Listed On',
-                      _formatDate(product.createdAt!),
-                      Icons.calendar_today,
-                    ),
-                    const SizedBox(height: 24),
-                  ],
 
                   // Blockchain Info Card
                   Card(
@@ -200,7 +227,7 @@ class ProductDetailScreen extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 80), // Space for button
+                  const SizedBox(height: 80),
                 ],
               ),
             ),
@@ -251,7 +278,59 @@ class ProductDetailScreen extends StatelessWidget {
     );
   }
 
-  // Info section builder
+  // ✅ Full screen zoomable image viewer
+  void _showFullScreenImage(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+          body: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: Center(
+              child: Image.network(
+                product.imageUrl!,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder({bool isLoading = false}) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.purple.shade300,
+            Colors.blue.shade400,
+            Colors.cyan.shade300,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: isLoading
+            ? const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              )
+            : Icon(
+                Icons.shopping_bag,
+                size: 120,
+                color: Colors.white.withOpacity(0.7),
+              ),
+      ),
+    );
+  }
+
   Widget _buildInfoSection(
     BuildContext context,
     String label,
@@ -314,7 +393,6 @@ class ProductDetailScreen extends StatelessWidget {
     );
   }
 
-  // Enhanced purchase dialog
   void _showPurchaseDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -330,7 +408,6 @@ class ProductDetailScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product details
             Text(
               'Product: ${product.name}',
               style: const TextStyle(
@@ -352,37 +429,6 @@ class ProductDetailScreen extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            
-            // Blockchain note
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.purple.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline, color: Colors.purple.shade700, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'In a full implementation, this would:\n'
-                      '• Connect to your Polkadot wallet\n'
-                      '• Execute a blockchain transaction\n'
-                      '• Require gas fees\n'
-                      '• Transfer ownership on-chain',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade700,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
         actions: [
@@ -390,80 +436,23 @@ class ProductDetailScreen extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton.icon(
+          ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _handlePurchase(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Blockchain integration coming soon!'),
+                  backgroundColor: Colors.purple,
+                ),
+              );
             },
-            icon: const Icon(Icons.check_circle),
-            label: const Text('Confirm Purchase'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.purple,
-              foregroundColor: Colors.white,
             ),
+            child: const Text('Confirm Purchase'),
           ),
         ],
       ),
     );
-  }
-
-  // Handle purchase (mock for now, blockchain integration later)
-  void _handlePurchase(BuildContext context) {
-    // Show loading
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-            SizedBox(width: 16),
-            Text('Processing transaction...'),
-          ],
-        ),
-        duration: Duration(seconds: 2),
-        backgroundColor: Colors.purple,
-      ),
-    );
-
-    // Simulate transaction
-    Future.delayed(const Duration(seconds: 2), () {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text('Purchase successful! (Mock)\n${product.name} is now yours!'),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-          action: SnackBarAction(
-            label: 'View',
-            textColor: Colors.white,
-            onPressed: () {
-              // Future: Navigate to transaction details or user purchases
-            },
-          ),
-        ),
-      );
-    });
-  }
-
-  // Format date helper
-  String _formatDate(DateTime date) {
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
