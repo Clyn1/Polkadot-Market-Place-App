@@ -194,53 +194,81 @@ class _AddProductScreenState extends State<AddProductScreen> {
               const SizedBox(height: 24),
 
               // Image Upload Section
-              GestureDetector(
-                onTap: _isUploading ? null : _showImageSourceDialog,
-                child: Container(
-                  height: 250,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade400, width: 2),
-                    image: _selectedImage != null
-                        ? DecorationImage(
-                            image: FileImage(_selectedImage!),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: _selectedImage == null
-                      ? Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_photo_alternate, size: 64, color: Colors.grey.shade400),
-                            const SizedBox(height: 8),
-                            Text('Tap to add product image', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
-                            const SizedBox(height: 4),
-                            Text('Image will be stored on IPFS', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-                          ],
-                        )
-                      : Stack(
-                          children: [
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: CircleAvatar(
-                                backgroundColor: Colors.black54,
-                                child: IconButton(
-                                  icon: const Icon(Icons.close, color: Colors.white),
-                                  onPressed: () {
-                                    setState(() => _selectedImage = null);
-                                  },
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+              // Image Upload Section
+GestureDetector(
+  onTap: _isUploading ? null : _showImageSourceDialog,
+  child: Container(
+    height: 250,  // ✅ Fixed height
+    decoration: BoxDecoration(
+      color: Colors.grey.shade200,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: Colors.grey.shade400,
+        width: 2,
+      ),
+    ),
+    child: _selectedImage == null
+        ? Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add_photo_alternate,
+                size: 64,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tap to add product image',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 16,
                 ),
               ),
-
-              const SizedBox(height: 24),
+              const SizedBox(height: 4),
+              Text(
+                'Image will be stored on IPFS',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          )
+        : Stack(
+            children: [
+              // ✅ Image fits properly now
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(
+                  _selectedImage!,
+                  width: double.infinity,
+                  height: 250,
+                  fit: BoxFit.contain,  // ✅ Shows full image without cropping
+                ),
+              ),
+              // Close button
+              Positioned(
+                top: 8,
+                right: 8,
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _selectedImage = null;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+  ),
+),
 
               // Product Name
               TextFormField(
