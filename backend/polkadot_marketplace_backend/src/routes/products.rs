@@ -100,3 +100,4 @@ pub async fn search_products(
         Err(err) => Err(err),
     }
 }
+                                                                                                                                                                                                                                    
