@@ -3,33 +3,41 @@ name = "polkadot_marketplace_backend"
 version = "0.1.0"
 edition = "2021"
 
+# -----------------------------
+# Dependencies
+# -----------------------------
 [dependencies]
+# Async runtime
+tokio = { version = "1.38", features = ["full"] }
+
 # Web framework
-axum = "0.7"
-tokio = { version = "1", features = ["full"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+axum = { version = "0.7.9", features = ["multipart"] }
+
+# HTTP client (Pinata / IPFS)
+reqwest = { version = "0.11.27", features = ["json", "multipart", "rustls-tls"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-# Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Utilities
+bytes = "1.6"
+uuid = { version = "1.7", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
 
 # Environment variables
 dotenv = "0.15"
 
-# Utilities
-uuid = { version = "1.6", features = ["serde", "v4"] }
-chrono = { version = "0.4", features = ["serde"] }
+# Middleware
+tower-http = { version = "0.5.2", features = ["cors", "trace"] }
 
-# Future Polkadot integration (commented out for now)
-# subxt = "0.35"
-# sp-core = "31.0"
-# sp-keyring = "31.0"
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# -----------------------------
+# Dev dependencies
+# -----------------------------
 [dev-dependencies]
-# For testing
-reqwest = { version = "0.11", features = ["json"] }
+tokio-test = "0.4"

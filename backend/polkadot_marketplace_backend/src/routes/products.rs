@@ -7,7 +7,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::models::{ApiResponse, CreateProductRequest, UpdateProductRequest};
-use crate::services::ProductService;
+use crate::AppState;  // ← IMPORTANT: Import the new AppState
 
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
@@ -15,9 +15,9 @@ pub struct SearchQuery {
 }
 
 pub async fn get_products(
-    State(service): State<ProductService>,
+    State(state): State<AppState>,   // ← Changed from ProductService to AppState
 ) -> Result<impl IntoResponse, impl IntoResponse> {
-    match service.get_all_products() {
+    match state.product_service.get_all_products() {
         Ok(products) => Ok((
             StatusCode::OK,
             Json(ApiResponse::success(products)),
@@ -27,10 +27,10 @@ pub async fn get_products(
 }
 
 pub async fn get_product(
-    State(service): State<ProductService>,
+    State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
-    match service.get_product_by_id(&id) {
+    match state.product_service.get_product_by_id(&id) {
         Ok(product) => Ok((
             StatusCode::OK,
             Json(ApiResponse::success(product)),
@@ -40,10 +40,10 @@ pub async fn get_product(
 }
 
 pub async fn create_product(
-    State(service): State<ProductService>,
+    State(state): State<AppState>,
     Json(request): Json<CreateProductRequest>,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
-    match service.create_product(request) {
+    match state.product_service.create_product(request) {
         Ok(product) => Ok((
             StatusCode::CREATED,
             Json(ApiResponse::success_with_message(
@@ -56,11 +56,11 @@ pub async fn create_product(
 }
 
 pub async fn update_product(
-    State(service): State<ProductService>,
+    State(state): State<AppState>,
     Path(id): Path<String>,
     Json(request): Json<UpdateProductRequest>,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
-    match service.update_product(&id, request) {
+    match state.product_service.update_product(&id, request) {
         Ok(product) => Ok((
             StatusCode::OK,
             Json(ApiResponse::success_with_message(
@@ -73,10 +73,10 @@ pub async fn update_product(
 }
 
 pub async fn delete_product(
-    State(service): State<ProductService>,
+    State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
-    match service.delete_product(&id) {
+    match state.product_service.delete_product(&id) {
         Ok(_) => Ok((
             StatusCode::OK,
             Json(ApiResponse::<()>::success_with_message(
@@ -89,10 +89,10 @@ pub async fn delete_product(
 }
 
 pub async fn search_products(
-    State(service): State<ProductService>,
+    State(state): State<AppState>,
     Query(params): Query<SearchQuery>,
 ) -> Result<impl IntoResponse, impl IntoResponse> {
-    match service.search_products(&params.q) {
+    match state.product_service.search_products(&params.q) {
         Ok(products) => Ok((
             StatusCode::OK,
             Json(ApiResponse::success(products)),
@@ -100,4 +100,3 @@ pub async fn search_products(
         Err(err) => Err(err),
     }
 }
-                                                                                                                                                                                                                                    

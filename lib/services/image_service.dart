@@ -2,65 +2,46 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../env/env.dart';
 
+/// Image Service - Uploads through YOUR backend (not directly to Pinata)
 class ImageService {
-  static const String _ipfsGateway = 'https://gateway.pinata.cloud/ipfs/';
-  static const String _uploadEndpoint = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
-  
-  final String _pinataApiKey = Env.pinataApiKey;
-  final String _pinataSecretKey = Env.pinataSecretKey;
+  static const String backendUrl = 'http://127.0.0.1:8080/api/upload';
 
   Future<String?> uploadToIPFS(File imageFile) async {
     try {
-      if (_pinataApiKey.isEmpty || _pinataSecretKey.isEmpty) {
-        debugPrint('❌ Pinata API keys are empty!');
-        return null;
-      }
-
-      debugPrint('📤 Starting IPFS upload...');
+      debugPrint('📤 Uploading to backend...');
       
       final bytes = await imageFile.readAsBytes();
       final filename = 'product_${DateTime.now().millisecondsSinceEpoch}.jpg';
       
-      final request = http.MultipartRequest('POST', Uri.parse(_uploadEndpoint));
-      request.headers['pinata_api_key'] = _pinataApiKey;
-      request.headers['pinata_secret_api_key'] = _pinataSecretKey;
-      
+      final request = http.MultipartRequest('POST', Uri.parse(backendUrl));
       request.files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          bytes,
-          filename: filename,
-        ),
+        http.MultipartFile.fromBytes('file', bytes, filename: filename),
       );
-      
-      debugPrint('🚀 Sending request to Pinata...');
       
       final response = await request.send();
       final responseData = await response.stream.toBytes();
       final responseString = String.fromCharCodes(responseData);
       
-      debugPrint('📥 Pinata response: ${response.statusCode}');
+      debugPrint('📥 Response: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final result = json.decode(responseString);
-        final ipfsHash = result['IpfsHash'] as String;
-        debugPrint('✅ Upload successful! Hash: $ipfsHash');
-        return ipfsHash;
-      } else {
-        debugPrint('❌ Upload failed: $responseString');
-        return null;
+        if (result['success'] == true && result['data'] != null) {
+          return result['data']['ipfs_hash'] as String;
+        }
       }
-    } catch (e, stackTrace) {
+      
+      debugPrint('❌ Failed: $responseString');
+      return null;
+    } catch (e) {
       debugPrint('❌ Error: $e');
-      debugPrint('Stack: $stackTrace');
       return null;
     }
   }
 
   String getIPFSUrl(String hash) {
-    return '$_ipfsGateway$hash';
+    return 'https://gateway.pinata.cloud/ipfs/$hash';
   }
 
   Future<String?> uploadImageAndGetUrl(File imageFile) async {
@@ -69,21 +50,5 @@ class ImageService {
       return getIPFSUrl(hash);
     }
     return null;
-  }
-
-  Future<bool> unpinFromIPFS(String hash) async {
-    try {
-      final response = await http.delete(
-        Uri.parse('https://api.pinata.cloud/pinning/unpin/$hash'),
-        headers: {
-          'pinata_api_key': _pinataApiKey,
-          'pinata_secret_api_key': _pinataSecretKey,
-        },
-      );
-      return response.statusCode == 200;
-    } catch (e) {
-      debugPrint('Error unpinning: $e');
-      return false;
-    }
   }
 }
