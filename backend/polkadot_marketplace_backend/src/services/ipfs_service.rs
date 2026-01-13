@@ -6,7 +6,6 @@ pub struct IpfsService {
     client: Client,
     base_url: String,
     jwt: Option<String>,
-    // Removed unused api_key and secret_key fields
 }
 
 impl IpfsService {
@@ -27,7 +26,7 @@ impl IpfsService {
             .post(&format!("{}/pinning/pinFileToIPFS", self.base_url))
             .multipart(form);
 
-        // Add JWT if available (this is the currently used auth method)
+        // Add JWT if available
         if let Some(jwt) = &self.jwt {
             request = request.header("Authorization", format!("Bearer {}", jwt));
         }
@@ -35,35 +34,40 @@ impl IpfsService {
         let response = request
             .send()
             .await
-            .map_err(|e| ApiError::internal_error(format!("Upload failed: {}", e)))?;
+            .map_err(|e| ApiError::new(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Upload failed: {}", e)
+            ))?;
 
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
-
+            
+            // Convert reqwest::StatusCode to axum::http::StatusCode
             let axum_status = axum::http::StatusCode::from_u16(status.as_u16())
                 .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
-
-            return Err(ApiError::new(
-                axum_status,
-                format!("Pinata failed: {}", error_text),
-            ));
+            
+            return Err(ApiError::new(axum_status, format!("Pinata failed: {}", error_text)));
         }
 
-        let result: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| ApiError::internal_error(format!("JSON parse failed: {}", e)))?;
+        let result: serde_json::Value = response.json().await
+            .map_err(|e| ApiError::new(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Parse failed: {}", e)
+            ))?;
 
         let cid = result["IpfsHash"]
             .as_str()
-            .ok_or_else(|| ApiError::internal_error("No 'IpfsHash' in Pinata response".to_string()))?
+            .ok_or_else(|| ApiError::new(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "No CID in response".to_string()
+            ))?
             .to_string();
 
         Ok(cid)
     }
 
-    /// Get public gateway URL for a hash
+    /// Get IPFS gateway URL for a hash
     pub fn get_gateway_url(&self, hash: &str) -> String {
         format!("https://gateway.pinata.cloud/ipfs/{}", hash)
     }

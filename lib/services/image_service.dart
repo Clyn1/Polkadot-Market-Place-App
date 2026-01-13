@@ -11,31 +11,60 @@ class ImageService {
     try {
       debugPrint('📤 Uploading to backend...');
       
+      // Get the file bytes
       final bytes = await imageFile.readAsBytes();
-      final filename = 'product_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final filename = imageFile.path.split('/').last;
       
+      // Determine content type from extension
+      String contentType = 'image/jpeg';
+      if (filename.toLowerCase().endsWith('.png')) {
+        contentType = 'image/png';
+      } else if (filename.toLowerCase().endsWith('.jpg') || 
+                 filename.toLowerCase().endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      } else if (filename.toLowerCase().endsWith('.gif')) {
+        contentType = 'image/gif';
+      } else if (filename.toLowerCase().endsWith('.webp')) {
+        contentType = 'image/webp';
+      }
+      
+      debugPrint('📄 File: $filename, Size: ${bytes.length} bytes, Type: $contentType');
+      
+      // Create multipart request
       final request = http.MultipartRequest('POST', Uri.parse(backendUrl));
+      
+      // Add file with proper content type
       request.files.add(
-        http.MultipartFile.fromBytes('file', bytes, filename: filename),
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: filename,
+          contentType: http.MediaType.parse(contentType),
+        ),
       );
       
-      final response = await request.send();
-      final responseData = await response.stream.toBytes();
-      final responseString = String.fromCharCodes(responseData);
+      // Send request
+      debugPrint('🚀 Sending request...');
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
       
       debugPrint('📥 Response: ${response.statusCode}');
+      debugPrint('📥 Body: ${response.body}');
       
       if (response.statusCode == 200) {
-        final result = json.decode(responseString);
+        final result = json.decode(response.body);
         if (result['success'] == true && result['data'] != null) {
-          return result['data']['ipfs_hash'] as String;
+          final ipfsHash = result['data']['ipfs_hash'] as String;
+          debugPrint('✅ Upload successful: $ipfsHash');
+          return ipfsHash;
         }
       }
       
-      debugPrint('❌ Failed: $responseString');
+      debugPrint('❌ Failed: ${response.body}');
       return null;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('❌ Error: $e');
+      debugPrint('Stack trace: $stackTrace');
       return null;
     }
   }

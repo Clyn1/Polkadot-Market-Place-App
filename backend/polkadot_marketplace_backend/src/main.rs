@@ -6,6 +6,7 @@ mod utils;
 use axum::{
     routing::{delete, get, post, put},
     Router,
+    extract::DefaultBodyLimit,
 };
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -45,14 +46,13 @@ async fn main() {
     let product_service = Arc::new(ProductService::new());
     tracing::info!("Product service initialized");
 
-    // Use JWT from config (it's already Option<String>)
-    let ipfs_service = Arc::new(IpfsService::new(config.pinata_jwt.clone()));
-    
-    if config.pinata_jwt.is_some() {
-        tracing::info!("IPFS service initialized (using JWT authentication)");
-    } else {
-        tracing::warn!("IPFS service initialized WITHOUT JWT - uploads may fail");
-    }
+    let ipfs_service = Arc::new(IpfsService::new(
+        Some(config
+            .pinata_jwt
+            .clone()
+            .expect("PINATA_JWT must be set in .env")),
+    ));
+    tracing::info!("IPFS service initialized");
 
     // ── Shared application state ─────────────────────────────────────
     let app_state = AppState {
@@ -79,8 +79,12 @@ async fn main() {
         .route("/api/products/:id", put(products::update_product))
         .route("/api/products/:id", delete(products::delete_product))
 
-        // Upload (IPFS)
-        .route("/api/upload", post(upload::upload_image))
+        // Upload (IPFS) - with 50MB limit
+        .route(
+            "/api/upload", 
+            post(upload::upload_image)
+                .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB limit
+        )
 
         // Shared state (ONLY once)
         .with_state(app_state)
