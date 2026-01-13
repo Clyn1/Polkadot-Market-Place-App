@@ -1,60 +1,70 @@
-use reqwest::Client;    
-use anyhow::{Result, anyhow};
+use reqwest::{multipart, Client};
 
-#[derive(Clone)]
+use crate::models::response::ApiError;
+
 pub struct IpfsService {
     client: Client,
-    pinata_api_key: String,
-    pinata_secret_key: String,
-    pinata_jwt: String,
+    base_url: String,
+    jwt: Option<String>,
+    // Removed unused api_key and secret_key fields
 }
 
 impl IpfsService {
-    pub fn new(
-        pinata_api_key: String,
-        pinata_secret_key: String,
-        pinata_jwt: String,
-    ) -> Self {
+    pub fn new(jwt: Option<String>) -> Self {
         Self {
             client: Client::new(),
-            pinata_api_key,
-            pinata_secret_key,
-            pinata_jwt,
+            base_url: "https://api.pinata.cloud".to_string(),
+            jwt,
         }
     }
 
-    /// Upload raw bytes to Pinata IPFS
-    pub async fn upload_bytes(&self, data: bytes::Bytes) -> Result<String> {
-        let url = "https://api.pinata.cloud/pinning/pinFileToIPFS";
+    /// Upload bytes to Pinata IPFS
+    pub async fn upload_bytes(&self, data: Vec<u8>) -> Result<String, ApiError> {
+        let form = multipart::Form::new()
+            .part("file", multipart::Part::bytes(data).file_name("upload.jpg"));
 
-        let part = reqwest::multipart::Part::bytes(data.to_vec())
-            .file_name("upload");
+        let mut request = self.client
+            .post(&format!("{}/pinning/pinFileToIPFS", self.base_url))
+            .multipart(form);
 
-        let form = reqwest::multipart::Form::new()
-            .part("file", part);
-
-        let response = self
-            .client
-            .post(url)
-            // 🔐 Prefer JWT auth
-            .bearer_auth(&self.pinata_jwt)
-            // If you want API key auth instead, uncomment:
-            // .header("pinata_api_key", &self.pinata_api_key)
-            // .header("pinata_secret_api_key", &self.pinata_secret_key)
-            .multipart(form)
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            let text = response.text().await.unwrap_or_default();
-            return Err(anyhow!("Pinata upload failed: {}", text));
+        // Add JWT if available (this is the currently used auth method)
+        if let Some(jwt) = &self.jwt {
+            request = request.header("Authorization", format!("Bearer {}", jwt));
         }
 
-        let json: serde_json::Value = response.json().await?;
-        let cid = json["IpfsHash"]
-            .as_str()
-            .ok_or_else(|| anyhow!("Missing IpfsHash in Pinata response"))?;
+        let response = request
+            .send()
+            .await
+            .map_err(|e| ApiError::internal_error(format!("Upload failed: {}", e)))?;
 
-        Ok(cid.to_string())
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+
+            let axum_status = axum::http::StatusCode::from_u16(status.as_u16())
+                .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+
+            return Err(ApiError::new(
+                axum_status,
+                format!("Pinata failed: {}", error_text),
+            ));
+        }
+
+        let result: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| ApiError::internal_error(format!("JSON parse failed: {}", e)))?;
+
+        let cid = result["IpfsHash"]
+            .as_str()
+            .ok_or_else(|| ApiError::internal_error("No 'IpfsHash' in Pinata response".to_string()))?
+            .to_string();
+
+        Ok(cid)
+    }
+
+    /// Get public gateway URL for a hash
+    pub fn get_gateway_url(&self, hash: &str) -> String {
+        format!("https://gateway.pinata.cloud/ipfs/{}", hash)
     }
 }

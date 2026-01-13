@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 /// In-memory product store
-/// In production, this would be a database (PostgreSQL, MongoDB, etc.)
-/// Later: This will query Polkadot blockchain
+/// In production, this would be replaced with a real database
+/// Future: Will query/interact with Polkadot/Substrate blockchain
 pub type ProductStore = Arc<RwLock<HashMap<String, Product>>>;
 
 /// Product service handles all product-related business logic
@@ -14,7 +14,7 @@ pub struct ProductService {
 }
 
 impl ProductService {
-    /// Create a new product service
+    /// Create a new product service instance
     pub fn new() -> Self {
         Self {
             store: Arc::new(RwLock::new(HashMap::new())),
@@ -23,30 +23,32 @@ impl ProductService {
 
     /// Get all products
     pub fn get_all_products(&self) -> Result<Vec<Product>, ApiError> {
-        let store = self.store.read().map_err(|_| {
-            ApiError::internal_server_error("Failed to read product store")
-        })?;
+        let store = self
+            .store
+            .read()
+            .map_err(|_| ApiError::internal_error("Failed to acquire read lock on product store"))?;
 
         let products: Vec<Product> = store.values().cloned().collect();
         Ok(products)
     }
 
-    /// Get a product by ID
+    /// Get a single product by its ID
     pub fn get_product_by_id(&self, id: &str) -> Result<Product, ApiError> {
-        let store = self.store.read().map_err(|_| {
-            ApiError::internal_server_error("Failed to read product store")
-        })?;
+        let store = self
+            .store
+            .read()
+            .map_err(|_| ApiError::internal_error("Failed to acquire read lock on product store"))?;
 
         store
             .get(id)
             .cloned()
-            .ok_or_else(|| ApiError::not_found(format!("Product with id {} not found", id)))
+            .ok_or_else(|| ApiError::not_found(format!("Product with id '{}' not found", id)))
     }
 
     /// Create a new product
     pub fn create_product(&self, request: CreateProductRequest) -> Result<Product, ApiError> {
-        // Validate input
-        if request.name.is_empty() {
+        // Basic validation
+        if request.name.trim().is_empty() {
             return Err(ApiError::bad_request("Product name cannot be empty"));
         }
 
@@ -54,11 +56,11 @@ impl ProductService {
             return Err(ApiError::bad_request("Product price must be greater than 0"));
         }
 
-        if request.owner.is_empty() {
+        if request.owner.trim().is_empty() {
             return Err(ApiError::bad_request("Owner address cannot be empty"));
         }
 
-        // Create product
+        // Create product (id is generated inside Product::new)
         let product = Product::new(
             request.name,
             request.price,
@@ -67,10 +69,16 @@ impl ProductService {
             request.image_url,
         );
 
-        // Store product
-        let mut store = self.store.write().map_err(|_| {
-            ApiError::internal_server_error("Failed to write to product store")
-        })?;
+        // Write to store
+        let mut store = self
+            .store
+            .write()
+            .map_err(|_| ApiError::internal_error("Failed to acquire write lock on product store"))?;
+
+        // Optional: prevent duplicate IDs (though very unlikely with UUID)
+        if store.contains_key(&product.id) {
+            return Err(ApiError::internal_error("Generated ID collision - please try again"));
+        }
 
         store.insert(product.id.clone(), product.clone());
 
@@ -79,26 +87,28 @@ impl ProductService {
         Ok(product)
     }
 
-    /// Update a product
+    /// Update an existing product (partial update)
     pub fn update_product(
         &self,
         id: &str,
         request: UpdateProductRequest,
     ) -> Result<Product, ApiError> {
-        let mut store = self.store.write().map_err(|_| {
-            ApiError::internal_server_error("Failed to write to product store")
-        })?;
+        let mut store = self
+            .store
+            .write()
+            .map_err(|_| ApiError::internal_error("Failed to acquire write lock on product store"))?;
 
         let product = store
             .get_mut(id)
-            .ok_or_else(|| ApiError::not_found(format!("Product with id {} not found", id)))?;
+            .ok_or_else(|| ApiError::not_found(format!("Product with id '{}' not found", id)))?;
 
-        // Update fields if provided
+        // Apply updates only if provided
         if let Some(name) = request.name {
-            if name.is_empty() {
+            let trimmed = name.trim();
+            if trimmed.is_empty() {
                 return Err(ApiError::bad_request("Product name cannot be empty"));
             }
-            product.name = name;
+            product.name = trimmed.to_string();
         }
 
         if let Some(price) = request.price {
@@ -109,11 +119,11 @@ impl ProductService {
         }
 
         if let Some(description) = request.description {
-            product.description = Some(description);
+            product.description = Some(description.trim().to_string());
         }
 
         if let Some(image_url) = request.image_url {
-            product.image_url = Some(image_url);
+            product.image_url = Some(image_url.trim().to_string());
         }
 
         tracing::info!("Updated product: {}", id);
@@ -121,34 +131,40 @@ impl ProductService {
         Ok(product.clone())
     }
 
-    /// Delete a product
+    /// Delete a product by ID
     pub fn delete_product(&self, id: &str) -> Result<(), ApiError> {
-        let mut store = self.store.write().map_err(|_| {
-            ApiError::internal_server_error("Failed to write to product store")
-        })?;
+        let mut store = self
+            .store
+            .write()
+            .map_err(|_| ApiError::internal_error("Failed to acquire write lock on product store"))?;
 
-        store
-            .remove(id)
-            .ok_or_else(|| ApiError::not_found(format!("Product with id {} not found", id)))?;
+        if store.remove(id).is_none() {
+            return Err(ApiError::not_found(format!("Product with id '{}' not found", id)));
+        }
 
         tracing::info!("Deleted product: {}", id);
-
         Ok(())
     }
 
-    /// Search products by name
+    /// Search products by name or description (case-insensitive)
     pub fn search_products(&self, query: &str) -> Result<Vec<Product>, ApiError> {
-        let store = self.store.read().map_err(|_| {
-            ApiError::internal_server_error("Failed to read product store")
-        })?;
+        if query.trim().is_empty() {
+            return self.get_all_products();
+        }
+
+        let store = self
+            .store
+            .read()
+            .map_err(|_| ApiError::internal_error("Failed to acquire read lock on product store"))?;
 
         let query_lower = query.to_lowercase();
+
         let results: Vec<Product> = store
             .values()
             .filter(|p| {
                 p.name.to_lowercase().contains(&query_lower)
                     || p.description
-                        .as_ref()
+                        .as_deref()
                         .map(|d| d.to_lowercase().contains(&query_lower))
                         .unwrap_or(false)
             })

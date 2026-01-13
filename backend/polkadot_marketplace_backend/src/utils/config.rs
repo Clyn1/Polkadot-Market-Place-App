@@ -2,11 +2,14 @@ use std::env;
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    #[allow(dead_code)]
     pub server_host: String,
+    #[allow(dead_code)]
     pub server_port: u16,
+    #[allow(dead_code)]
     pub pinata_api_key: String,
+    #[allow(dead_code)]
     pub pinata_secret_key: String,
-    // Optional: Use JWT instead
     pub pinata_jwt: Option<String>,
 }
 
@@ -22,9 +25,9 @@ impl Config {
                 .parse()
                 .expect("SERVER_PORT must be a valid u16"),
             pinata_api_key: env::var("PINATA_API_KEY")
-                .expect("PINATA_API_KEY must be set in .env"),
+                .unwrap_or_default(), // or .expect() if you want it required later
             pinata_secret_key: env::var("PINATA_SECRET_KEY")
-                .expect("PINATA_SECRET_KEY must be set in .env"),
+                .unwrap_or_default(),
             pinata_jwt: env::var("PINATA_JWT").ok(),
         }
     }

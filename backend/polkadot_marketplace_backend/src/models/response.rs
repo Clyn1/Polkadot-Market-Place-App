@@ -1,22 +1,20 @@
-use serde::Serialize;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
+use serde::{Deserialize, Serialize};
+use std::fmt;
 
-/// Standard API response wrapper
-#[derive(Debug, Serialize)]
+/// Standard API Response wrapper
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ApiResponse<T> {
     pub success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<T>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
 
-impl<T: Serialize> ApiResponse<T> {
-    /// Create a success response with data
+impl<T> ApiResponse<T> {
     pub fn success(data: T) -> Self {
         Self {
             success: true,
@@ -25,28 +23,19 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    /// Create a success response with message
-    pub fn success_with_message(data: T, message: String) -> Self {
+    pub fn success_with_message(data: T, message: impl Into<String>) -> Self {
         Self {
             success: true,
             data: Some(data),
-            message: Some(message),
+            message: Some(message.into()),
         }
     }
+
+    // Removed unused `error` method
+    // If needed later, you can easily add it back
 }
 
-impl ApiResponse<()> {
-    /// Create an error response
-    pub fn error(message: String) -> Self {
-        Self {
-            success: false,
-            data: None,
-            message: Some(message),
-        }
-    }
-}
-
-/// Custom error type for API
+/// API Error type
 #[derive(Debug)]
 pub struct ApiError {
     pub status: StatusCode,
@@ -61,6 +50,10 @@ impl ApiError {
         }
     }
 
+    pub fn internal_error(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::INTERNAL_SERVER_ERROR, message)
+    }
+
     pub fn not_found(message: impl Into<String>) -> Self {
         Self::new(StatusCode::NOT_FOUND, message)
     }
@@ -68,16 +61,26 @@ impl ApiError {
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, message)
     }
+}
 
-    pub fn internal_server_error(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::INTERNAL_SERVER_ERROR, message)
+// Implement Display trait for ApiError
+impl fmt::Display for ApiError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.status, self.message)
     }
 }
 
-/// Convert ApiError into Axum Response
+// Implement std::error::Error trait
+impl std::error::Error for ApiError {}
+
+// Convert ApiError into an Axum Response
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let body = Json(ApiResponse::<()>::error(self.message));
+        let body = Json(serde_json::json!({
+            "success": false,
+            "message": self.message,
+        }));
+
         (self.status, body).into_response()
     }
 }

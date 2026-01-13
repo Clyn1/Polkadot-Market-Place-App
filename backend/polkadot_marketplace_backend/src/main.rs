@@ -18,9 +18,9 @@ use crate::utils::config::Config;
 
 // ── Application State ───────────────────────────────────────────────
 #[derive(Clone)]
-struct AppState {
-    product_service: Arc<ProductService>,
-    ipfs_service: Arc<IpfsService>,
+pub struct AppState {
+    pub product_service: Arc<ProductService>,
+    pub ipfs_service: Arc<IpfsService>,
 }
 
 #[tokio::main]
@@ -45,15 +45,14 @@ async fn main() {
     let product_service = Arc::new(ProductService::new());
     tracing::info!("Product service initialized");
 
-    let ipfs_service = Arc::new(IpfsService::new(
-        config.pinata_api_key.clone(),
-        config.pinata_secret_key.clone(),
-        config
-            .pinata_jwt
-            .clone()
-            .expect("PINATA_JWT must be set in .env"),
-    ));
-    tracing::info!("IPFS service initialized");
+    // Use JWT from config (it's already Option<String>)
+    let ipfs_service = Arc::new(IpfsService::new(config.pinata_jwt.clone()));
+    
+    if config.pinata_jwt.is_some() {
+        tracing::info!("IPFS service initialized (using JWT authentication)");
+    } else {
+        tracing::warn!("IPFS service initialized WITHOUT JWT - uploads may fail");
+    }
 
     // ── Shared application state ─────────────────────────────────────
     let app_state = AppState {
