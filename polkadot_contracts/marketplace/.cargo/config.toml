@@ -1,0 +1,8 @@
+[build]
+# Use the stable toolchain by default
+rustflags = ["-C", "embed-bitcode=no"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
