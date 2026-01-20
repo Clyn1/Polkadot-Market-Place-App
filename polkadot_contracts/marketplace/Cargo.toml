@@ -1,12 +1,9 @@
+cargo-features = ["panic-immediate-abort"]
+
 [package]
 name = "marketplace"
 version = "1.0.0"
 edition = "2021"
-
-[dependencies]
-ink = { version = "5.0.0", default-features = false }
-scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
-scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 
 [lib]
 path = "lib.rs"
@@ -15,9 +12,11 @@ path = "lib.rs"
 default = ["std"]
 std = ["ink/std", "scale/std", "scale-info/std"]
 
-[patch.crates-io]
-const_env = "0.1"
+[dependencies]
+ink = { version = "5.1.1", default-features = false }
+scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
+scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
+const_env = "0.1.5"
 
-
-
-
+[profile.release]
+panic = "immediate-abort"
