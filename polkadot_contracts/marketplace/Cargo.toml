@@ -1,9 +1,8 @@
-cargo-features = ["panic-immediate-abort"]
-
 [package]
 name = "marketplace"
 version = "1.0.0"
 edition = "2021"
+authors = ["Developer"]
 
 [lib]
 path = "lib.rs"
@@ -18,5 +17,12 @@ scale = { package = "parity-scale-codec", version = "3", default-features = fals
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
 const_env = "0.1.5"
 
+[profile.dev]
+panic = "abort"
+
 [profile.release]
-panic = "immediate-abort"
+panic = "abort"
+lto = true
+opt-level = "z"
+strip = true
+codegen-units = 1

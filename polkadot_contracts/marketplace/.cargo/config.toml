@@ -1,0 +1,3 @@
+[target.wasm32-unknown-unknown]
+# Override any immediate-abort settings with standard panic=abort
+rustflags = ["-Cpanic=abort", "-C", "link-arg=-zstack-size=65536"]
