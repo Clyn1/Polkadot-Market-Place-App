@@ -13,7 +13,7 @@ mod marketplace {
         derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
     )]
     pub struct Product {
-        pub id: u64,
+        pub id: u64,    
         pub name: String,
         pub description: String,
         pub price: Balance,

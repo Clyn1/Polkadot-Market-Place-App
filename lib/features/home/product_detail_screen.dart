@@ -40,7 +40,7 @@ class ProductDetailScreen extends StatelessWidget {
                   }
                 },
                 child: Hero(
-                  tag: 'product-${product.id}',
+                  tag: 'product-${product.id.toString()}', // ✅ CHANGED: Added .toString()
                   child: product.imageUrl != null && product.imageUrl!.isNotEmpty
                       ? Stack(
                           fit: StackFit.expand,
@@ -141,7 +141,7 @@ class ProductDetailScreen extends StatelessWidget {
                   _buildInfoSection(
                     context,
                     'Product ID',
-                    product.id,
+                    product.id.toString(), // ✅ CHANGED: Added .toString()
                     Icons.tag,
                   ),
                   const SizedBox(height: 16),
@@ -394,6 +394,14 @@ class ProductDetailScreen extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Product ID: ${product.id.toString()}', // ✅ CHANGED: Added .toString()
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
             ),
           ],
         ),

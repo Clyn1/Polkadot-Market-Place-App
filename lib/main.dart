@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'features/home/home_screen.dart';
+import 'package:polkadot_marketplace/features/home/home_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -12,7 +12,13 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: HomeScreen(),
+      title: 'Polkadot Marketplace',
+      theme: ThemeData(
+        primarySwatch: Colors.purple,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+      ),
+      home: const HomeScreen(),  // ✅ Added const
     );
   }
 }
+  

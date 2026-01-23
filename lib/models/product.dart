@@ -1,75 +1,101 @@
-import 'package:flutter/foundation.dart'; // Optional, for better toString
-
 class Product {
-  final String id;
+  final int id;
   final String name;
-  final double price;
+  final String description;
+  final BigInt price;
+  final String ipfsHash;
+  final String seller;
   final String owner;
-  final String? description;
-  final String? imageUrl;
-  final DateTime? createdAt;
+  final bool isAvailable;
+  final DateTime createdAt;
+  final DateTime? soldAt;
 
   Product({
     required this.id,
     required this.name,
+    required this.description,
     required this.price,
+    required this.ipfsHash,
+    required this.seller,
     required this.owner,
-    this.description,
-    this.imageUrl,
-    DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
+    required this.isAvailable,
+    required this.createdAt,
+    this.soldAt,
+  });
 
-  // Convert Product to JSON (for sending to backend)
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'price': price,
-      'owner': owner,
-      'description': description,
-      'image_url': imageUrl, // Matches Rust backend field
-      'created_at': createdAt?.toIso8601String(),
-    };
-  }
-
-  // Create Product from JSON (received from backend)
-  factory Product.fromJson(Map<String, dynamic> json) {
+  factory Product.fromBlockchain(Map<String, dynamic> data) {
     return Product(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      price: (json['price'] as num).toDouble(),
-      owner: json['owner'] as String,
-      description: json['description'] as String?,
-      imageUrl: json['image_url'] as String?,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
+      id: data['id'] as int,
+      name: data['name'] as String,
+      description: data['description'] as String,
+      price: BigInt.parse(data['price'].toString()),
+      ipfsHash: data['ipfs_hash'] as String,
+      seller: data['seller'] as String,
+      owner: data['owner'] as String,
+      isAvailable: data['is_available'] as bool,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        data['created_at'] as int,
+      ),
+      soldAt: data['sold_at'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(data['sold_at'] as int)
           : null,
     );
   }
 
-  // Copy with optional overrides
-  Product copyWith({
-    String? id,
-    String? name,
-    double? price,
-    String? owner,
-    String? description,
-    String? imageUrl,
-    DateTime? createdAt,
-  }) {
+  factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      price: price ?? this.price,
-      owner: owner ?? this.owner,
-      description: description ?? this.description,
-      imageUrl: imageUrl ?? this.imageUrl,
-      createdAt: createdAt ?? this.createdAt,
+      id: int.tryParse(json['id'].toString()) ?? 0,
+      name: json['name'] as String,
+      description: json['description'] as String? ?? '',
+      price: json['price'] is BigInt 
+          ? json['price'] as BigInt
+          : BigInt.from((json['price'] as num).toInt()),
+      ipfsHash: json['ipfs_hash'] as String? ?? json['image_url'] as String? ?? '',
+      seller: json['owner'] as String? ?? json['seller'] as String? ?? '',
+      owner: json['owner'] as String,
+      isAvailable: json['is_available'] as bool? ?? true,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+      soldAt: json['sold_at'] != null
+          ? DateTime.parse(json['sold_at'] as String)
+          : null,
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id.toString(),
+      'name': name,
+      'description': description,
+      'price': priceInDot,
+      'ipfs_hash': ipfsHash,
+      'image_url': ipfsHash,
+      'seller': seller,
+      'owner': owner,
+      'is_available': isAvailable,
+      'created_at': createdAt.toIso8601String(),
+      'sold_at': soldAt?.toIso8601String(),
+    };
+  }
+
+  String get priceInDot {
+    final dotDecimals = BigInt.from(1000000000000);
+    final wholeDot = price ~/ dotDecimals;
+    final fraction = price % dotDecimals;
+    
+    if (fraction == BigInt.zero) {
+      return wholeDot.toString();
+    }
+    
+    final fractionalPart = (fraction * BigInt.from(100) ~/ dotDecimals);
+    return '$wholeDot.${fractionalPart.toString().padLeft(2, '0')}';
+  }
+
+  String? get imageUrl => ipfsHash.isNotEmpty ? ipfsHash : null;
+  
   @override
   String toString() {
-    return 'Product(id: $id, name: $name, price: $price DOT, owner: $owner)';
+    return 'Product(id: $id, name: $name, price: $priceInDot DOT)';
   }
 }

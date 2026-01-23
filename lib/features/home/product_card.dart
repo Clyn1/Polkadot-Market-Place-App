@@ -1,3 +1,4 @@
+// lib/features/home/product_card.dart
 import 'package:flutter/material.dart';
 import '../../models/product.dart';
 import 'product_detail_screen.dart';
@@ -31,37 +32,40 @@ class ProductCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Image - LARGER SIZE
+            // Product Image
             Hero(
               tag: 'product-${product.id}',
-              child: Container(
-                height: 280, // ✅ Increased from 200 to 280
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
+              child: Material(
+                type: MaterialType.transparency,
+                child: Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
                   ),
-                ),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                    child: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                        ? Image.network(
+                            product.imageUrl!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return _buildPlaceholder(isLoading: true);
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              debugPrint('Image load error: $error');
+                              return _buildPlaceholder();
+                            },
+                          )
+                        : _buildPlaceholder(),
                   ),
-                  child: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                      ? Image.network(
-                          product.imageUrl!,
-                          fit: BoxFit.cover, // ✅ Covers entire area
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return _buildPlaceholder(isLoading: true);
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            debugPrint('Image load error: $error');
-                            return _buildPlaceholder();
-                          },
-                        )
-                      : _buildPlaceholder(),
                 ),
               ),
             ),
@@ -76,7 +80,7 @@ class ProductCard extends StatelessWidget {
                   Text(
                     product.name,
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                     maxLines: 2,
@@ -84,7 +88,7 @@ class ProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   
-                  // Description (if available)
+                  // Description
                   if (product.description != null && product.description!.isNotEmpty) ...[
                     Text(
                       product.description!,
@@ -95,66 +99,78 @@ class ProductCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                   ],
                   
-                  // Price
+                  // Price and Owner
                   Row(
                     children: [
-                      const Icon(
-                        Icons.currency_bitcoin,
-                        size: 20,
-                        color: Colors.orange,
+                      // Price
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.currency_bitcoin,
+                            size: 18,
+                            color: Colors.orange,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${product.price} DOT',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${product.price} DOT',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
+                      
                       const Spacer(),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        size: 16,
-                        color: Colors.grey.shade400,
+                      
+                      // Owner Address
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.person_outline,
+                              size: 14,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _shortenAddress(product.owner),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
                   
-                  // Owner Address
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                  // Created Date
+                  if (product.createdAt != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Listed: ${_formatDate(product.createdAt!)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.person_outline,
-                          size: 16,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _shortenAddress(product.owner),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade700,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -196,7 +212,7 @@ class ProductCard extends StatelessWidget {
               )
             : Icon(
                 Icons.shopping_bag,
-                size: 64,
+                size: 48,
                 color: Colors.white.withOpacity(0.7),
               ),
       ),
@@ -207,4 +223,22 @@ class ProductCard extends StatelessWidget {
     if (address.length <= 13) return address;
     return '${address.substring(0, 6)}...${address.substring(address.length - 4)}';
   }
+  
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    
+    if (difference.inDays > 30) {
+      return '${(difference.inDays / 30).floor()} months ago';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hours ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minutes ago';
+    } else {
+      return 'Just now';
+    }
+  }
 }
+  

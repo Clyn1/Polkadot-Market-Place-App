@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/product.dart';
-import '../../services/api_service.dart'; // ✅ Added import
+import 'services/blockchain_service.dart';
 import 'product_card.dart';
 import 'add_product_screen.dart';
 import 'search_screen.dart';
@@ -13,20 +13,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
-  // ✅ ApiService instance
-  final _apiService = ApiService();
+  final _blockchainService = BlockchainService();
 
-  // Loading state
   bool isLoading = true;
   bool isRefreshing = false;
-  
-  // Error state
   String? errorMessage;
-  
-  // Product list
   List<Product> products = [];
   
-  // Animation controller
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -34,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _setupAnimations();
-    _loadProducts();
+    _initializeAndLoad();
   }
 
   void _setupAnimations() {
@@ -47,7 +40,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  // ✅ Updated: Using ApiService instead of direct http calls
+  Future<void> _initializeAndLoad() async {
+    try {
+      await _blockchainService.connect();
+      await _loadProducts();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          errorMessage = 'Failed to connect to blockchain: $e';
+          isLoading = false;
+          isRefreshing = false;
+        });
+      }
+    }
+  }
+
   Future<void> _loadProducts() async {
     if (!isRefreshing) {
       setState(() {
@@ -61,8 +68,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
 
     try {
-      // Real API call via ApiService
-      final fetchedProducts = await _apiService.getAllProducts();
+      final fetchedProducts = await _blockchainService.getAllProducts();
 
       if (mounted) {
         setState(() {
@@ -77,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         setState(() {
           isLoading = false;
           isRefreshing = false;
-          errorMessage = 'Failed to connect to backend: ${e.toString()}';
+          errorMessage = 'Failed to load products from blockchain: ${e.toString()}';
         });
       }
     }
@@ -198,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void dispose() {
     _animationController.dispose();
+    _blockchainService.disconnect();
     super.dispose();
   }
 
@@ -270,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           const SizedBox(height: 32),
           Text(
-            'Loading Products...',
+            'Loading Products from Blockchain...',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -279,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           const SizedBox(height: 12),
           Text(
-            'Please wait',
+            'Connecting to Polkadot network...',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.shade500,
@@ -311,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
             const SizedBox(height: 24),
             const Text(
-              'Something Went Wrong',
+              'Blockchain Connection Failed',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -319,7 +326,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
             const SizedBox(height: 12),
             Text(
-              errorMessage ?? 'Unknown error occurred',
+              errorMessage ?? 'Unable to connect to Polkadot network',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -329,7 +336,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
-              onPressed: _loadProducts,
+              onPressed: _initializeAndLoad,
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
               style: ElevatedButton.styleFrom(
@@ -371,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
             const SizedBox(height: 24),
             Text(
-              'No Products Yet',
+              'No Products on Blockchain',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -380,13 +387,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
             const SizedBox(height: 12),
             Text(
-              'Be the first to list a product\non the marketplace!',
+              'Be the first to list a product\non the Polkadot blockchain!',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey.shade600,
                 height: 1.5,
-              ),
+              ),  
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
@@ -425,22 +432,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${products.length} Product${products.length != 1 ? 's' : ''} Available',
+                  '${products.length} Product${products.length != 1 ? 's' : ''} on Blockchain',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey.shade700,
                   ),
                 ),
-                if (isRefreshing)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
+                Row(
+                  children: [
+                    if (isRefreshing)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.link,
+                      size: 16,
+                      color: _blockchainService.isConnected ? Colors.green : Colors.red,
                     ),
-                  ),
+                  ],
+                ),
               ],
             ),
           ),
