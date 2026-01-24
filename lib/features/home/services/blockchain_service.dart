@@ -1,69 +1,125 @@
-// lib/features/home/services/blockchain_service.dart
 import 'dart:convert';
+import 'dart:async'; 
 import 'package:flutter/material.dart';
 import 'package:polkadart/polkadart.dart';
 import '../../../models/product.dart';
+import '../../../core/constants/contract_constants.dart';
 
 class BlockchainService {
   Provider? _provider;
   bool _isConnected = false;
+  bool _isConnecting = false;
 
   bool get isConnected => _isConnected;
 
   Future<void> connect() async {
+    // Prevent multiple simultaneous connection attempts
+    if (_isConnecting) {
+      print('⏳ Connection already in progress...');
+      return;
+    }
+
     if (_isConnected) {
       print('✅ Already connected to blockchain');
       return;
     }
 
+    _isConnecting = true;
+    
     try {
-      const wsUrl = 'wss://rpc.polkadot.io';
-      print('🔗 Connecting to Substrate node at $wsUrl...');
+      print('🔗 Connecting to Substrate node at ${ContractConstants.wsUrl}...');
       
-      _provider = Provider.fromUri(Uri.parse(wsUrl));
-      await _provider!.connect();
+      // Create new provider instance
+      _provider = Provider.fromUri(Uri.parse(ContractConstants.wsUrl));
+      
+      // Set a timeout for connection
+      final connectionFuture = _provider!.connect();
+      final timeoutFuture = Future.delayed(const Duration(seconds: 10));
+      
+      final result = await Future.any([connectionFuture, timeoutFuture]);
+      
+      if (result == timeoutFuture) {
+        throw TimeoutException('Connection timeout after 10 seconds');
+      }
       
       _isConnected = true;
       print('✅ Successfully connected to blockchain');
+      
+    } on TimeoutException catch (e) {
+      _isConnected = false;
+      print('⏰ Connection timeout: ${ContractConstants.wsUrl}');
+      print('   Make sure your Substrate node is running');
+      rethrow;
+      
     } catch (e) {
       _isConnected = false;
-      print('❌ Failed to connect to blockchain: $e');
-      rethrow;
+      
+      // Handle "Already connected" gracefully
+      if (e.toString().contains('Already connected')) {
+        print('⚠️ Connection already established');
+        _isConnected = true; // Assume we're connected
+      } else if (e.toString().contains('Connection refused')) {
+        print('❌ Connection refused: ${ContractConstants.wsUrl}');
+        print('   Please start your Substrate node:');
+        print('   ./target/release/node-template --dev --ws-external');
+      } else if (e.toString().contains('WebSocket')) {
+        print('❌ WebSocket error: $e');
+        print('   Check if node is running and WS port is open');
+      } else {
+        print('❌ Failed to connect to blockchain: $e');
+      }
+      
+      // Don't rethrow for connection errors, just mark as disconnected
+      _provider = null;
+      
+    } finally {
+      _isConnecting = false;
     }
   }
 
   Future<List<Product>> getAllProducts() async {
-    _ensureConnected();
+    await ensureConnected();
 
     try {
       print('📋 Fetching products from blockchain...');
       
       await Future.delayed(const Duration(seconds: 2));
       
-      // Create Product objects with correct constructor parameters
       final List<Product> mockProducts = [
         Product(
-          id: 1,  // int, not String
-          name: 'Blockchain Guide',
-          description: 'Learn blockchain fundamentals',
-          price: BigInt.from(29990000000000),  // BigInt for 29.99 DOT (12 decimals)
-          ipfsHash: 'https://picsum.photos/200',  // Use ipfsHash instead of imageUrl
-          seller: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY',
-          owner: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY',
+          id: 1,
+          name: 'Organic Mangoes',
+          description: 'Fresh organic mangoes from Kisumu farms',
+          price: BigInt.from(100000000000),
+          ipfsHash: 'QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG',
+          seller: ContractConstants.aliceAddress,
+          owner: ContractConstants.aliceAddress,
           isAvailable: true,
           createdAt: DateTime.now().subtract(const Duration(days: 2)),
           soldAt: null,
         ),
         Product(
           id: 2,
-          name: 'Crypto Wallet',
-          description: 'Secure hardware wallet',
-          price: BigInt.from(129990000000000),  // 129.99 DOT
-          ipfsHash: 'https://picsum.photos/201',
-          seller: '5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty',
-          owner: '5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty',
+          name: 'Casio Watch',
+          description: 'Best metal Casio Watch',
+          price: BigInt.from(1000000000000),
+          ipfsHash: 'QmTestHash234567890abcdef',
+          seller: ContractConstants.aliceAddress,
+          owner: ContractConstants.aliceAddress,
           isAvailable: true,
           createdAt: DateTime.now().subtract(const Duration(days: 1)),
+          soldAt: null,
+        ),
+        Product(
+          id: 3,
+          name: 'Coffee Beans',
+          description: 'Premium arabica coffee from Nyeri',
+          price: BigInt.from(50000000000),
+          ipfsHash: 'QmCoffeeHash987654321xyz',
+          seller: ContractConstants.bobAddress,
+          owner: ContractConstants.bobAddress,
+          isAvailable: true,
+          createdAt: DateTime.now(),
           soldAt: null,
         ),
       ];
@@ -77,21 +133,20 @@ class BlockchainService {
   }
 
   Future<Product?> getProduct(int productId) async {
-    _ensureConnected();
+    await ensureConnected();
     
     try {
       print('🔍 Querying product ID: $productId');
       
-      // Return mock product if ID is 1
       if (productId == 1) {
         return Product(
           id: 1,
-          name: 'Blockchain Guide',
-          description: 'Learn blockchain fundamentals',
-          price: BigInt.from(29990000000000),
-          ipfsHash: 'https://picsum.photos/200',
-          seller: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY',
-          owner: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY',
+          name: 'Organic Mangoes',
+          description: 'Fresh organic mangoes from Kisumu farms',
+          price: BigInt.from(100000000000),
+          ipfsHash: 'QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG',
+          seller: ContractConstants.aliceAddress,
+          owner: ContractConstants.aliceAddress,
           isAvailable: true,
           createdAt: DateTime.now().subtract(const Duration(days: 2)),
           soldAt: null,
@@ -112,9 +167,8 @@ class BlockchainService {
     required String ipfsHash,
     String? signerSeed,
   }) async {
-    _ensureConnected();
+    await ensureConnected();
     
-    // Simulate successful listing
     await Future.delayed(const Duration(seconds: 3));
     print('✅ Product "$name" listed successfully (mock)');
     return 'tx_${DateTime.now().millisecondsSinceEpoch}';
@@ -125,29 +179,38 @@ class BlockchainService {
     required BigInt paymentAmount,
     String? signerSeed,
   }) async {
-    _ensureConnected();
+    await ensureConnected();
     
-    // Simulate successful purchase
     await Future.delayed(const Duration(seconds: 3));
     print('✅ Product $productId purchased successfully (mock)');
     return 'tx_${DateTime.now().millisecondsSinceEpoch}';
   }
 
   Future<void> disconnect() async {
-    if (_provider != null && _isConnected) {
+    if (_provider != null) {
       try {
         await _provider!.disconnect();
         _isConnected = false;
         print('🔌 Disconnected from blockchain');
       } catch (e) {
         print('⚠️ Error during disconnect: $e');
+      } finally {
+        _provider = null;
       }
     }
   }
 
+  /// Ensures connection is established before operations
+  Future<void> ensureConnected() async {
+    if (!_isConnected) {
+      await connect();
+    }
+  }
+
+  /// Old method kept for compatibility
   void _ensureConnected() {
     if (!_isConnected) {
       throw Exception('Not connected to blockchain. Call connect() first.');
     }
   }
-}               
+}
