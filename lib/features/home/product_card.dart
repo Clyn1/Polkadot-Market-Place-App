@@ -1,4 +1,3 @@
-// lib/features/home/product_card.dart
 import 'package:flutter/material.dart';
 import '../../models/product.dart';
 import 'product_detail_screen.dart';
@@ -51,20 +50,7 @@ class ProductCard extends StatelessWidget {
                       topLeft: Radius.circular(12),
                       topRight: Radius.circular(12),
                     ),
-                    child: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                        ? Image.network(
-                            product.imageUrl!,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return _buildPlaceholder(isLoading: true);
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              debugPrint('Image load error: $error');
-                              return _buildPlaceholder();
-                            },
-                          )
-                        : _buildPlaceholder(),
+                    child: _buildProductImage(),
                   ),
                 ),
               ),
@@ -89,9 +75,9 @@ class ProductCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   
                   // Description
-                  if (product.description != null && product.description!.isNotEmpty) ...[
+                  if (product.description.isNotEmpty) ...[
                     Text(
-                      product.description!,
+                      product.description,
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade600,
@@ -115,7 +101,7 @@ class ProductCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '${product.price} DOT',
+                            product.displayPrice, // Use the formatted price
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -147,7 +133,7 @@ class ProductCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              _shortenAddress(product.owner),
+                              product.shortOwner, // Use shortened address
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade700,
@@ -161,22 +147,35 @@ class ProductCard extends StatelessWidget {
                   ),
                   
                   // Created Date
-                  if (product.createdAt != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Listed: ${_formatDate(product.createdAt!)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Listed: ${_formatDate(product.createdAt)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildProductImage() {
+    return Image.network(
+      product.imageUrl, // This now returns a guaranteed String
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return _buildPlaceholder(isLoading: true);
+      },
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint('Image load error: $error for URL: ${product.imageUrl}');
+        return _buildPlaceholder();
+      },
     );
   }
 
@@ -210,18 +209,28 @@ class ProductCard extends StatelessWidget {
                   ),
                 ],
               )
-            : Icon(
-                Icons.shopping_bag,
-                size: 48,
-                color: Colors.white.withOpacity(0.7),
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.shopping_bag,
+                    size: 48,
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    product.name,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
       ),
     );
-  }
-
-  String _shortenAddress(String address) {
-    if (address.length <= 13) return address;
-    return '${address.substring(0, 6)}...${address.substring(address.length - 4)}';
   }
   
   String _formatDate(DateTime date) {

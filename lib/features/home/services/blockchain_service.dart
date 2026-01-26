@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:async'; 
 import 'package:flutter/material.dart';
 import 'package:polkadart/polkadart.dart';
@@ -13,7 +12,6 @@ class BlockchainService {
   bool get isConnected => _isConnected;
 
   Future<void> connect() async {
-    // Prevent multiple simultaneous connection attempts
     if (_isConnecting) {
       print('⏳ Connection already in progress...');
       return;
@@ -29,49 +27,22 @@ class BlockchainService {
     try {
       print('🔗 Connecting to Substrate node at ${ContractConstants.wsUrl}...');
       
-      // Create new provider instance
       _provider = Provider.fromUri(Uri.parse(ContractConstants.wsUrl));
-      
-      // Set a timeout for connection
-      final connectionFuture = _provider!.connect();
-      final timeoutFuture = Future.delayed(const Duration(seconds: 10));
-      
-      final result = await Future.any([connectionFuture, timeoutFuture]);
-      
-      if (result == timeoutFuture) {
-        throw TimeoutException('Connection timeout after 10 seconds');
-      }
+      await _provider!.connect();
       
       _isConnected = true;
       print('✅ Successfully connected to blockchain');
       
-    } on TimeoutException catch (e) {
-      _isConnected = false;
-      print('⏰ Connection timeout: ${ContractConstants.wsUrl}');
-      print('   Make sure your Substrate node is running');
-      rethrow;
-      
     } catch (e) {
-      _isConnected = false;
-      
-      // Handle "Already connected" gracefully
+      // Handle "Already connected" error gracefully
       if (e.toString().contains('Already connected')) {
-        print('⚠️ Connection already established');
-        _isConnected = true; // Assume we're connected
-      } else if (e.toString().contains('Connection refused')) {
-        print('❌ Connection refused: ${ContractConstants.wsUrl}');
-        print('   Please start your Substrate node:');
-        print('   ./target/release/node-template --dev --ws-external');
-      } else if (e.toString().contains('WebSocket')) {
-        print('❌ WebSocket error: $e');
-        print('   Check if node is running and WS port is open');
+        print('⚠️ Already connected to blockchain');
+        _isConnected = true;
       } else {
+        _isConnected = false;
         print('❌ Failed to connect to blockchain: $e');
+        _provider = null;
       }
-      
-      // Don't rethrow for connection errors, just mark as disconnected
-      _provider = null;
-      
     } finally {
       _isConnecting = false;
     }
@@ -85,13 +56,14 @@ class BlockchainService {
       
       await Future.delayed(const Duration(seconds: 2));
       
+      // Use REAL IPFS hashes from your Pinata uploads
       final List<Product> mockProducts = [
         Product(
           id: 1,
           name: 'Organic Mangoes',
           description: 'Fresh organic mangoes from Kisumu farms',
-          price: BigInt.from(100000000000),
-          ipfsHash: 'QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG',
+          price: BigInt.from(100000000000), // 0.1 DOT
+          ipfsHash: 'QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7', // Your uploaded image!
           seller: ContractConstants.aliceAddress,
           owner: ContractConstants.aliceAddress,
           isAvailable: true,
@@ -102,8 +74,8 @@ class BlockchainService {
           id: 2,
           name: 'Casio Watch',
           description: 'Best metal Casio Watch',
-          price: BigInt.from(1000000000000),
-          ipfsHash: 'QmTestHash234567890abcdef',
+          price: BigInt.from(1000000000000), // 1.0 DOT
+          ipfsHash: 'QmTestHash234567890abcdef', // Use your real IPFS hash
           seller: ContractConstants.aliceAddress,
           owner: ContractConstants.aliceAddress,
           isAvailable: true,
@@ -114,8 +86,8 @@ class BlockchainService {
           id: 3,
           name: 'Coffee Beans',
           description: 'Premium arabica coffee from Nyeri',
-          price: BigInt.from(50000000000),
-          ipfsHash: 'QmCoffeeHash987654321xyz',
+          price: BigInt.from(50000000000), // 0.05 DOT
+          ipfsHash: 'QmCoffeeHash987654321xyz', // Use your real IPFS hash
           seller: ContractConstants.bobAddress,
           owner: ContractConstants.bobAddress,
           isAvailable: true,
@@ -126,6 +98,7 @@ class BlockchainService {
       
       print('✅ Found ${mockProducts.length} products');
       return mockProducts;
+      
     } catch (e) {
       print('❌ Failed to fetch products: $e');
       return [];
@@ -144,7 +117,7 @@ class BlockchainService {
           name: 'Organic Mangoes',
           description: 'Fresh organic mangoes from Kisumu farms',
           price: BigInt.from(100000000000),
-          ipfsHash: 'QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG',
+          ipfsHash: 'QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7', // Your uploaded image
           seller: ContractConstants.aliceAddress,
           owner: ContractConstants.aliceAddress,
           isAvailable: true,
@@ -169,9 +142,21 @@ class BlockchainService {
   }) async {
     await ensureConnected();
     
-    await Future.delayed(const Duration(seconds: 3));
-    print('✅ Product "$name" listed successfully (mock)');
-    return 'tx_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      print('📝 Listing product on blockchain...');
+      print('   Name: $name');
+      print('   Price: $price');
+      print('   IPFS Hash: $ipfsHash');
+      
+      await Future.delayed(const Duration(seconds: 3));
+      print('✅ Product "$name" listed successfully (mock)');
+      
+      return 'tx_${DateTime.now().millisecondsSinceEpoch}';
+      
+    } catch (e) {
+      print('❌ Failed to list product: $e');
+      rethrow;
+    }
   }
 
   Future<String> buyProduct({
@@ -181,9 +166,20 @@ class BlockchainService {
   }) async {
     await ensureConnected();
     
-    await Future.delayed(const Duration(seconds: 3));
-    print('✅ Product $productId purchased successfully (mock)');
-    return 'tx_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      print('🛒 Purchasing product from blockchain...');
+      print('   Product ID: $productId');
+      print('   Payment: $paymentAmount');
+      
+      await Future.delayed(const Duration(seconds: 3));
+      print('✅ Product $productId purchased successfully (mock)');
+      
+      return 'tx_${DateTime.now().millisecondsSinceEpoch}';
+      
+    } catch (e) {
+      print('❌ Failed to purchase product: $e');
+      rethrow;
+    }
   }
 
   Future<void> disconnect() async {
@@ -200,17 +196,9 @@ class BlockchainService {
     }
   }
 
-  /// Ensures connection is established before operations
   Future<void> ensureConnected() async {
     if (!_isConnected) {
       await connect();
-    }
-  }
-
-  /// Old method kept for compatibility
-  void _ensureConnected() {
-    if (!_isConnected) {
-      throw Exception('Not connected to blockchain. Call connect() first.');
     }
   }
 }

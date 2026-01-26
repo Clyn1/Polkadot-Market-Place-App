@@ -51,8 +51,8 @@ class Product {
           ? json['price'] as BigInt
           : BigInt.from((json['price'] as num).toInt()),
       ipfsHash: json['ipfs_hash'] as String? ?? json['image_url'] as String? ?? '',
-      seller: json['owner'] as String? ?? json['seller'] as String? ?? '',
-      owner: json['owner'] as String,
+      seller: json['seller'] as String? ?? '',
+      owner: json['owner'] as String? ?? '',
       isAvailable: json['is_available'] as bool? ?? true,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
@@ -79,6 +79,7 @@ class Product {
     };
   }
 
+  // Convert price from smallest unit (12 decimals) to DOT
   String get priceInDot {
     final dotDecimals = BigInt.from(1000000000000);
     final wholeDot = price ~/ dotDecimals;
@@ -92,10 +93,34 @@ class Product {
     return '$wholeDot.${fractionalPart.toString().padLeft(2, '0')}';
   }
 
-  String? get imageUrl => ipfsHash.isNotEmpty ? ipfsHash : null;
+  // Convert IPFS hash to viewable URL - FIXED
+  String get imageUrl {
+    if (ipfsHash.isEmpty) {
+      return 'https://picsum.photos/300/200?random=$id';
+    }
+    
+    // If it's already a full URL, return it
+    if (ipfsHash.startsWith('http')) {
+      return ipfsHash;
+    }
+    
+    // Convert IPFS hash to Pinata gateway URL
+    return 'https://gateway.pinata.cloud/ipfs/$ipfsHash';
+  }
+  
+  // Helper to display price nicely
+  String get displayPrice {
+    return '${priceInDot} DOT';
+  }
+  
+  // Shorten address for display
+  String get shortOwner {
+    if (owner.length <= 13) return owner;
+    return '${owner.substring(0, 6)}...${owner.substring(owner.length - 4)}';
+  }
   
   @override
   String toString() {
-    return 'Product(id: $id, name: $name, price: $priceInDot DOT)';
+    return 'Product(id: $id, name: $name, price: $displayPrice)';
   }
 }

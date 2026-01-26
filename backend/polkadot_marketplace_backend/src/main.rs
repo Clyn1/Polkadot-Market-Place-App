@@ -1,106 +1,54 @@
-mod models;
+use actix_web::{web, App, HttpServer, HttpResponse};
+use actix_cors::Cors;
+
 mod routes;
-mod services;
-mod utils;
 
-use axum::{
-    routing::{delete, get, post, put},
-    Router,
-    extract::DefaultBodyLimit,
-};
-use std::sync::Arc;
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::trace::TraceLayer;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    dotenv::dotenv().ok();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-use crate::routes::{health, products, upload};
-use crate::services::{IpfsService, ProductService};
-use crate::utils::config::Config;
+    log::info!("🚀 Starting Polkadot Marketplace Backend");
+    log::info!("📡 Server: http://127.0.0.1:8080");
+    
+    if std::env::var("PINATA_API_KEY").is_ok() {
+        log::info!("✅ Pinata API key found");
+    } else {
+        log::warn!("⚠️ No Pinata API key - will use mock hashes");
+    }
 
-// ── Application State ───────────────────────────────────────────────
-#[derive(Clone)]
-pub struct AppState {
-    pub product_service: Arc<ProductService>,
-    pub ipfs_service: Arc<IpfsService>,
+    HttpServer::new(|| {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_method()
+            .allow_any_header()
+            .max_age(3600);
+
+        App::new()
+            .wrap(cors)
+            .app_data(
+                web::JsonConfig::default()
+                    .limit(10_485_760)  // ✅ 10MB limit for JSON
+            )
+            .app_data(
+                web::PayloadConfig::default()
+                    .limit(10_485_760)  // ✅ 10MB limit for payloads
+            )
+            .service(
+                web::scope("/api")
+                    .route("/health", web::get().to(health_check))
+                    .service(routes::upload::upload_image),
+            )
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
 }
 
-#[tokio::main]
-async fn main() {
-    // ── Logging / tracing ────────────────────────────────────────────
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| {
-                    "polkadot_marketplace_backend=debug,tower_http=debug".into()
-                }),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
-    // ── Load configuration ───────────────────────────────────────────
-    let config = Config::from_env();
-    tracing::info!("Configuration loaded");
-    tracing::info!("Server will run on {}", config.server_address());
-
-    // ── Initialize services ──────────────────────────────────────────
-    let product_service = Arc::new(ProductService::new());
-    tracing::info!("Product service initialized");
-
-    let ipfs_service = Arc::new(IpfsService::new(
-        Some(config
-            .pinata_jwt
-            .clone()
-            .expect("PINATA_JWT must be set in .env")),
-    ));
-    tracing::info!("IPFS service initialized");
-
-    // ── Shared application state ─────────────────────────────────────
-    let app_state = AppState {
-        product_service,
-        ipfs_service,
-    };
-
-    // ── CORS (dev-friendly) ──────────────────────────────────────────
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
-
-    // ── Router ───────────────────────────────────────────────────────
-    let app = Router::new()
-        // Health
-        .route("/health", get(health::health_check))
-
-        // Products
-        .route("/api/products", get(products::get_products))
-        .route("/api/products", post(products::create_product))
-        .route("/api/products/search", get(products::search_products))
-        .route("/api/products/:id", get(products::get_product))
-        .route("/api/products/:id", put(products::update_product))
-        .route("/api/products/:id", delete(products::delete_product))
-
-        // Upload (IPFS) - with 50MB limit
-        .route(
-            "/api/upload", 
-            post(upload::upload_image)
-                .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB limit
-        )
-
-        // Shared state (ONLY once)
-        .with_state(app_state)
-
-        // Middleware
-        .layer(cors)
-        .layer(TraceLayer::new_for_http());
-
-    // ── Start server ─────────────────────────────────────────────────
-    let listener = tokio::net::TcpListener::bind(&config.server_address())
-        .await
-        .expect("Failed to bind address");
-
-    tracing::info!("🚀 Server running on {}", config.server_address());
-
-    axum::serve(listener, app)
-        .await
-        .expect("Server crashed");
+async fn health_check() -> HttpResponse {
+    HttpResponse::Ok().json(serde_json::json!({
+        "status": "healthy",
+        "service": "polkadot-marketplace-backend",
+        "version": "1.0.0"
+    }))
 }
