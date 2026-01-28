@@ -1,9 +1,10 @@
+// lib/features/home/home_screen.dart
 import 'package:flutter/material.dart';
 import '../../models/product.dart';
 import 'services/blockchain_service.dart';
 import 'product_card.dart';
 import 'add_product_screen.dart';
-import 'search_screen.dart';
+import 'search_screen.dart';  
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -17,7 +18,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   bool isLoading = true;
   bool isRefreshing = false;
-  String? errorMessage;
+  String? error;
   List<Product> products = [];
   
   late AnimationController _animationController;
@@ -36,8 +37,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeIn,
+      ),
     );
+    
+    // Start at full opacity
+    _animationController.value = 1.0;
   }
 
   Future<void> _initializeAndLoad() async {
@@ -47,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     } catch (e) {
       if (mounted) {
         setState(() {
-          errorMessage = 'Failed to connect to blockchain: $e';
+          error = 'Failed to connect to blockchain: $e';
           isLoading = false;
           isRefreshing = false;
         });
@@ -56,34 +63,33 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _loadProducts() async {
-    if (!isRefreshing) {
-      setState(() {
-        isLoading = true;
-        errorMessage = null;
-      });
-    } else {
-      setState(() {
-        isRefreshing = true;
-      });
-    }
+    if (!mounted) return;
+    
+    setState(() {
+      isLoading = true;
+      error = null;
+    });
 
     try {
+      print('🔄 Loading products from blockchain...');
+      
       final fetchedProducts = await _blockchainService.getAllProducts();
-
+      
       if (mounted) {
         setState(() {
           products = fetchedProducts;
           isLoading = false;
-          isRefreshing = false;
         });
-        _animationController.forward();
       }
+      
+      print('✅ Loaded ${fetchedProducts.length} products');
+      
     } catch (e) {
+      print('❌ Error loading products: $e');
       if (mounted) {
         setState(() {
+          error = 'Failed to load products: $e';
           isLoading = false;
-          isRefreshing = false;
-          errorMessage = 'Failed to load products from blockchain: ${e.toString()}';
         });
       }
     }
@@ -94,6 +100,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       isRefreshing = true;
     });
     await _loadProducts();
+    setState(() {
+      isRefreshing = false;
+    });
   }
 
   void _navigateToAddProduct() async {
@@ -244,7 +253,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildBody() {
-    if (errorMessage != null) {
+    print('🔍 _buildBody: error=$error, loading=$isLoading, products=${products.length}');
+    
+    if (error != null) {
       return _buildErrorState();
     }
 
@@ -256,10 +267,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       return _buildEmptyState();
     }
 
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: _buildProductsList(),
-    );
+    return _buildProductsList();
   }
 
   Widget _buildLoadingState() {
@@ -326,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
             const SizedBox(height: 12),
             Text(
-              errorMessage ?? 'Unable to connect to Polkadot network',
+              error ?? 'Unable to connect to Polkadot network',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,

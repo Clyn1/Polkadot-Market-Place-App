@@ -1,3 +1,4 @@
+// lib/features/home/product_card.dart
 import 'package:flutter/material.dart';
 import '../../models/product.dart';
 import 'product_detail_screen.dart';
@@ -101,7 +102,7 @@ class ProductCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            product.displayPrice, // Use the formatted price
+                            product.displayPrice, // Now this exists!
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -133,7 +134,7 @@ class ProductCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              product.shortOwner, // Use shortened address
+                              product.shortOwner, // Now this exists!
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade700,
@@ -165,15 +166,18 @@ class ProductCard extends StatelessWidget {
   }
 
   Widget _buildProductImage() {
+    // Use safeImageUrl which always returns a string
+    final imageUrl = product.safeImageUrl;
+    
     return Image.network(
-      product.imageUrl, // This now returns a guaranteed String
+      imageUrl, // This is guaranteed to be a String, not String?
       fit: BoxFit.cover,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;
         return _buildPlaceholder(isLoading: true);
       },
       errorBuilder: (context, error, stackTrace) {
-        debugPrint('Image load error: $error for URL: ${product.imageUrl}');
+        debugPrint('Image load error: $error for URL: $imageUrl');
         return _buildPlaceholder();
       },
     );
@@ -250,4 +254,3 @@ class ProductCard extends StatelessWidget {
     }
   }
 }
-  

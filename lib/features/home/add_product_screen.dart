@@ -1,3 +1,4 @@
+// lib/features/home/add_product_screen.dart
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -47,9 +48,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
       // ✅ COMPRESSED IMAGE SETTINGS
       final XFile? image = await picker.pickImage(
         source: source,
-        maxWidth: 800,        // ✅ Reduced from 1920
-        maxHeight: 800,       // ✅ Reduced from 1080
-        imageQuality: 70,     // ✅ Reduced from 85
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 70,
       );
 
       if (image != null) {
@@ -194,15 +195,34 @@ class _AddProductScreenState extends State<AddProductScreen> {
         (double.parse(_priceController.text.trim()) * 1000000000000).toInt(),
       );
 
-      final txHash = await _blockchainService.listProduct(
+      // ✅ Get the transaction result
+      final dynamic txResult = await _blockchainService.listProduct(
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         price: priceInSmallestUnit,
         ipfsHash: ipfsHash,
       );
 
-      print('✅ Product listed! TX: $txHash');
+      // ✅ Handle the result based on its actual type - FIXED TYPE ERRORS
+      if (txResult is Map<String, dynamic>) {
+        // ✅ Explicitly cast to correct types to avoid type errors
+        final bool success = txResult['success'] as bool? ?? false;
+        
+        if (success) {
+          final String hash = txResult['hash'] as String? ?? 'unknown';
+          print('✅ Product listed successfully! TX hash: $hash');
+        } else {
+          final String error = txResult['error'] as String? ?? 'Unknown error';
+          throw Exception('Transaction failed: $error');
+        }
+      } else if (txResult is String) {
+        // If it returns a String (for backward compatibility)
+        print('✅ Product listed successfully! TX hash: $txResult');
+      } else {
+        throw Exception('Unexpected response type from blockchain service');
+      }
 
+      // ✅ Create product object to return
       final newProduct = Product(
         id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
         name: _nameController.text.trim(),

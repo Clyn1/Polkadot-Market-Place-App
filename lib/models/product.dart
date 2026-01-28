@@ -1,3 +1,4 @@
+// lib/models/product.dart
 class Product {
   final int id;
   final String name;
@@ -23,63 +24,44 @@ class Product {
     this.soldAt,
   });
 
-  factory Product.fromBlockchain(Map<String, dynamic> data) {
-    return Product(
-      id: data['id'] as int,
-      name: data['name'] as String,
-      description: data['description'] as String,
-      price: BigInt.parse(data['price'].toString()),
-      ipfsHash: data['ipfs_hash'] as String,
-      seller: data['seller'] as String,
-      owner: data['owner'] as String,
-      isAvailable: data['is_available'] as bool,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(
-        data['created_at'] as int,
-      ),
-      soldAt: data['sold_at'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(data['sold_at'] as int)
-          : null,
-    );
-  }
-
+  // ✅ FROM JSON
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: int.tryParse(json['id'].toString()) ?? 0,
+      id: json['id'] as int,
       name: json['name'] as String,
       description: json['description'] as String? ?? '',
-      price: json['price'] is BigInt 
-          ? json['price'] as BigInt
-          : BigInt.from((json['price'] as num).toInt()),
-      ipfsHash: json['ipfs_hash'] as String? ?? json['image_url'] as String? ?? '',
-      seller: json['seller'] as String? ?? '',
-      owner: json['owner'] as String? ?? '',
-      isAvailable: json['is_available'] as bool? ?? true,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
-          : DateTime.now(),
-      soldAt: json['sold_at'] != null
+      price: BigInt.parse(json['price'].toString()),
+      ipfsHash: json['ipfs_hash'] as String? ?? json['ipfsHash'] as String? ?? '',
+      seller: json['seller'] as String,
+      owner: json['owner'] as String,
+      isAvailable: json['is_available'] as bool? ?? json['isAvailable'] as bool? ?? true,
+      createdAt: DateTime.parse(json['created_at'] as String? ?? json['createdAt'] as String),
+      soldAt: json['sold_at'] != null 
           ? DateTime.parse(json['sold_at'] as String)
           : null,
     );
   }
 
+  // ✅ TO JSON
   Map<String, dynamic> toJson() {
     return {
-      'id': id.toString(),
+      'id': id,
       'name': name,
       'description': description,
-      'price': priceInDot,
+      'price': price.toString(),
       'ipfs_hash': ipfsHash,
-      'image_url': ipfsHash,
+      'ipfsHash': ipfsHash,
       'seller': seller,
       'owner': owner,
       'is_available': isAvailable,
+      'isAvailable': isAvailable,
       'created_at': createdAt.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
       'sold_at': soldAt?.toIso8601String(),
     };
   }
 
-  // Convert price from smallest unit (12 decimals) to DOT
+  // ✅ FORMATTED PRICE IN DOT
   String get priceInDot {
     final dotDecimals = BigInt.from(1000000000000);
     final wholeDot = price ~/ dotDecimals;
@@ -93,34 +75,40 @@ class Product {
     return '$wholeDot.${fractionalPart.toString().padLeft(2, '0')}';
   }
 
-  // Convert IPFS hash to viewable URL - FIXED
-  String get imageUrl {
-    if (ipfsHash.isEmpty) {
-      return 'https://picsum.photos/300/200?random=$id';
-    }
-    
-    // If it's already a full URL, return it
-    if (ipfsHash.startsWith('http')) {
-      return ipfsHash;
-    }
-    
-    // Convert IPFS hash to Pinata gateway URL
-    return 'https://gateway.pinata.cloud/ipfs/$ipfsHash';
-  }
-  
-  // Helper to display price nicely
+  // ✅ DISPLAY PRICE FOR UI
   String get displayPrice {
-    return '${priceInDot} DOT';
+    return '$priceInDot DOT';
   }
-  
-  // Shorten address for display
+
+  // ✅ SHORTENED OWNER ADDRESS
   String get shortOwner {
-    if (owner.length <= 13) return owner;
+    if (owner.length <= 10) return owner;
     return '${owner.substring(0, 6)}...${owner.substring(owner.length - 4)}';
+  }
+
+  // ✅ SHORTENED SELLER ADDRESS
+  String get shortSeller {
+    if (seller.length <= 10) return seller;
+    return '${seller.substring(0, 6)}...${seller.substring(seller.length - 4)}';
+  }
+
+  // ✅ IMAGE URL FROM IPFS
+  String? get imageUrl => ipfsHash.isNotEmpty && ipfsHash != 'QmDefaultHash'
+      ? 'https://gateway.pinata.cloud/ipfs/$ipfsHash' 
+      : null;
+
+  // ✅ SAFE IMAGE URL with better fallback
+  String get safeImageUrl {
+    if (ipfsHash.isEmpty || ipfsHash == 'QmDefaultHash') {
+      return 'https://via.placeholder.com/400x300/9C27B0/FFFFFF?text=${Uri.encodeComponent(name)}';
+    }
+    
+    // Try Pinata gateway first
+    return 'https://gateway.pinata.cloud/ipfs/$ipfsHash';
   }
   
   @override
   String toString() {
-    return 'Product(id: $id, name: $name, price: $displayPrice)';
+    return 'Product(id: $id, name: $name, price: $priceInDot DOT)';
   }
 }

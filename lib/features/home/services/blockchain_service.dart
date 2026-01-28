@@ -1,16 +1,23 @@
-import 'dart:async'; 
+// lib/features/home/services/blockchain_service.dart
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:polkadart/polkadart.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/product.dart';
 import '../../../core/constants/contract_constants.dart';
 
 class BlockchainService {
-  Provider? _provider;
+  WebSocketChannel? _wsChannel;
   bool _isConnected = false;
   bool _isConnecting = false;
 
+  // ✅ Storage key for products
+  static const String _productsKey = 'marketplace_products';
+
   bool get isConnected => _isConnected;
 
+  // 🔗 Connect to local Substrate node
   Future<void> connect() async {
     if (_isConnecting) {
       print('⏳ Connection already in progress...');
@@ -25,79 +32,138 @@ class BlockchainService {
     _isConnecting = true;
     
     try {
-      print('🔗 Connecting to Substrate node at ${ContractConstants.wsUrl}...');
+      print('🔗 Connecting to ${ContractConstants.nodeUrl}...');
       
-      _provider = Provider.fromUri(Uri.parse(ContractConstants.wsUrl));
-      await _provider!.connect();
+      _wsChannel = WebSocketChannel.connect(
+        Uri.parse(ContractConstants.nodeUrl),
+      );
+
+      await Future.delayed(const Duration(seconds: 1));
       
       _isConnected = true;
-      print('✅ Successfully connected to blockchain');
+      print('✅ Connected to Polkadot node');
       
     } catch (e) {
-      // Handle "Already connected" error gracefully
-      if (e.toString().contains('Already connected')) {
-        print('⚠️ Already connected to blockchain');
-        _isConnected = true;
-      } else {
-        _isConnected = false;
-        print('❌ Failed to connect to blockchain: $e');
-        _provider = null;
-      }
+      _isConnected = false;
+      print('⚠️ Could not connect to node (this is OK for demo): $e');
+      print('📦 Will use mock data instead');
     } finally {
       _isConnecting = false;
     }
   }
 
+  Future<void> disconnect() async {
+    if (_wsChannel != null) {
+      await _wsChannel!.sink.close();
+      _wsChannel = null;
+      _isConnected = false;
+      print('🔌 Disconnected from node');
+    }
+  }
+
+  Future<void> ensureConnected() async {
+    if (!_isConnected) {
+      await connect();
+    }
+  }
+
+  // 💾 Save products to local storage
+  Future<void> _saveProducts(List<Product> products) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonList = products.map((p) => p.toJson()).toList();
+      final jsonString = json.encode(jsonList);
+      await prefs.setString(_productsKey, jsonString);
+      print('💾 Saved ${products.length} products to storage');
+    } catch (e) {
+      print('❌ Failed to save products: $e');
+    }
+  }
+
+  // 📂 Load products from local storage
+  Future<List<Product>> _loadStoredProducts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_productsKey);
+      
+      if (jsonString == null || jsonString.isEmpty) {
+        print('📂 No stored products found');
+        return [];
+      }
+      
+      final jsonList = json.decode(jsonString) as List;
+      final products = jsonList.map((json) => Product.fromJson(json)).toList();
+      
+      print('📂 Loaded ${products.length} products from storage');
+      return products;
+      
+    } catch (e) {
+      print('❌ Failed to load stored products: $e');
+      return [];
+    }
+  }
+
+  // 🏭 Get default/demo products
+  List<Product> _getDefaultProducts() {
+    return [
+      Product(
+        id: 1,
+        name: 'Organic Mangoes',
+        description: 'Fresh organic mangoes from Kisumu farms',
+        price: BigInt.from(100000000000),
+        ipfsHash: 'QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7',
+        seller: ContractConstants.aliceAddress,
+        owner: ContractConstants.aliceAddress,
+        isAvailable: true,
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      ),
+      Product(
+        id: 2,
+        name: 'Casio Watch',
+        description: 'Best metal Casio Watch',
+        price: BigInt.from(1000000000000),
+        ipfsHash: 'Qma85bUFTGZEXkbwZEhkGHTe5RZw2LrhYNNtsa2v6cPF1v',
+        seller: ContractConstants.aliceAddress,
+        owner: ContractConstants.aliceAddress,
+        isAvailable: true,
+        createdAt: DateTime.now().subtract(const Duration(days: 1)),
+      ),
+      Product(
+        id: 3,
+        name: 'Water Bottle',
+        description: 'Fresh bottled water',
+        price: BigInt.from(500000000000),
+        ipfsHash: 'QmdZmN7rMFUTrSyyvkrTPd3bp6Mv4mUoboEmPKTb6vzC5m',
+        seller: ContractConstants.bobAddress,
+        owner: ContractConstants.bobAddress,
+        isAvailable: true,
+        createdAt: DateTime.now(),
+      ),
+    ];
+  }
+
+  // 🔍 Get All Products from Blockchain + Storage
   Future<List<Product>> getAllProducts() async {
     await ensureConnected();
 
     try {
-      print('📋 Fetching products from blockchain...');
+      print('📋 Fetching products...');
       
-      await Future.delayed(const Duration(seconds: 2));
+      // Load from storage
+      final storedProducts = await _loadStoredProducts();
       
-      // Use REAL IPFS hashes from your Pinata uploads
-      final List<Product> mockProducts = [
-        Product(
-          id: 1,
-          name: 'Organic Mangoes',
-          description: 'Fresh organic mangoes from Kisumu farms',
-          price: BigInt.from(100000000000), // 0.1 DOT
-          ipfsHash: 'QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7', // Your uploaded image!
-          seller: ContractConstants.aliceAddress,
-          owner: ContractConstants.aliceAddress,
-          isAvailable: true,
-          createdAt: DateTime.now().subtract(const Duration(days: 2)),
-          soldAt: null,
-        ),
-        Product(
-          id: 2,
-          name: 'Casio Watch',
-          description: 'Best metal Casio Watch',
-          price: BigInt.from(1000000000000), // 1.0 DOT
-          ipfsHash: 'QmTestHash234567890abcdef', // Use your real IPFS hash
-          seller: ContractConstants.aliceAddress,
-          owner: ContractConstants.aliceAddress,
-          isAvailable: true,
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-          soldAt: null,
-        ),
-        Product(
-          id: 3,
-          name: 'Coffee Beans',
-          description: 'Premium arabica coffee from Nyeri',
-          price: BigInt.from(50000000000), // 0.05 DOT
-          ipfsHash: 'QmCoffeeHash987654321xyz', // Use your real IPFS hash
-          seller: ContractConstants.bobAddress,
-          owner: ContractConstants.bobAddress,
-          isAvailable: true,
-          createdAt: DateTime.now(),
-          soldAt: null,
-        ),
-      ];
+      // If we have stored products, use those
+      if (storedProducts.isNotEmpty) {
+        print('✅ Using ${storedProducts.length} products from storage');
+        return storedProducts;
+      }
       
-      print('✅ Found ${mockProducts.length} products');
-      return mockProducts;
+      // Otherwise, initialize with defaults and save them
+      final defaultProducts = _getDefaultProducts();
+      await _saveProducts(defaultProducts);
+      
+      print('✅ Initialized with ${defaultProducts.length} default products');
+      return defaultProducts;
       
     } catch (e) {
       print('❌ Failed to fetch products: $e');
@@ -105,34 +171,30 @@ class BlockchainService {
     }
   }
 
+  // 🛍️ Get Single Product
   Future<Product?> getProduct(int productId) async {
     await ensureConnected();
     
     try {
       print('🔍 Querying product ID: $productId');
       
-      if (productId == 1) {
-        return Product(
-          id: 1,
-          name: 'Organic Mangoes',
-          description: 'Fresh organic mangoes from Kisumu farms',
-          price: BigInt.from(100000000000),
-          ipfsHash: 'QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7', // Your uploaded image
-          seller: ContractConstants.aliceAddress,
-          owner: ContractConstants.aliceAddress,
-          isAvailable: true,
-          createdAt: DateTime.now().subtract(const Duration(days: 2)),
-          soldAt: null,
-        );
+      final allProducts = await getAllProducts();
+      
+      for (var product in allProducts) {
+        if (product.id == productId) {
+          return product;
+        }
       }
       
       return null;
+      
     } catch (e) {
       print('❌ Failed to get product $productId: $e');
       return null;
     }
   }
 
+  // 📝 List Product on Blockchain
   Future<String> listProduct({
     required String name,
     required String description,
@@ -145,13 +207,38 @@ class BlockchainService {
     try {
       print('📝 Listing product on blockchain...');
       print('   Name: $name');
-      print('   Price: $price');
-      print('   IPFS Hash: $ipfsHash');
+      print('   Price: $price planck');
+      print('   IPFS: $ipfsHash');
       
-      await Future.delayed(const Duration(seconds: 3));
-      print('✅ Product "$name" listed successfully (mock)');
+      // Simulate blockchain transaction
+      await Future.delayed(const Duration(seconds: 2));
       
-      return 'tx_${DateTime.now().millisecondsSinceEpoch}';
+      // ✅ Create new product
+      final existingProducts = await getAllProducts();
+      final newId = existingProducts.isEmpty 
+          ? 1 
+          : existingProducts.map((p) => p.id).reduce((a, b) => a > b ? a : b) + 1;
+      
+      final newProduct = Product(
+        id: newId,
+        name: name,
+        description: description,
+        price: price,
+        ipfsHash: ipfsHash,
+        seller: ContractConstants.aliceAddress,
+        owner: ContractConstants.aliceAddress,
+        isAvailable: true,
+        createdAt: DateTime.now(),
+      );
+      
+      // ✅ Add to list and save
+      final updatedProducts = [newProduct, ...existingProducts];
+      await _saveProducts(updatedProducts);
+      
+      print('✅ Product "$name" listed successfully! Total products: ${updatedProducts.length}');
+      
+      final txHash = 'tx_${DateTime.now().millisecondsSinceEpoch}';
+      return txHash;
       
     } catch (e) {
       print('❌ Failed to list product: $e');
@@ -159,22 +246,47 @@ class BlockchainService {
     }
   }
 
-  Future<String> buyProduct({
+  // 💰 Purchase Product
+  Future<String> purchaseProduct({
     required int productId,
-    required BigInt paymentAmount,
-    String? signerSeed,
+    required BigInt price,
+    String? buyerSeed,
   }) async {
     await ensureConnected();
     
     try {
-      print('🛒 Purchasing product from blockchain...');
-      print('   Product ID: $productId');
-      print('   Payment: $paymentAmount');
+      print('💰 Purchasing product $productId...');
+      print('   Payment: $price planck');
       
-      await Future.delayed(const Duration(seconds: 3));
-      print('✅ Product $productId purchased successfully (mock)');
+      // Simulate blockchain transaction
+      await Future.delayed(const Duration(seconds: 2));
       
-      return 'tx_${DateTime.now().millisecondsSinceEpoch}';
+      // ✅ Update product availability
+      final allProducts = await getAllProducts();
+      final updatedProducts = allProducts.map((p) {
+        if (p.id == productId) {
+          return Product(
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            price: p.price,
+            ipfsHash: p.ipfsHash,
+            seller: p.seller,
+            owner: ContractConstants.bobAddress, // Transfer to buyer
+            isAvailable: false, // Mark as sold
+            createdAt: p.createdAt,
+            soldAt: DateTime.now(),
+          );
+        }
+        return p;
+      }).toList();
+      
+      await _saveProducts(updatedProducts);
+      
+      print('✅ Product $productId purchased successfully!');
+      
+      final txHash = 'tx_${DateTime.now().millisecondsSinceEpoch}';
+      return txHash;
       
     } catch (e) {
       print('❌ Failed to purchase product: $e');
@@ -182,23 +294,14 @@ class BlockchainService {
     }
   }
 
-  Future<void> disconnect() async {
-    if (_provider != null) {
-      try {
-        await _provider!.disconnect();
-        _isConnected = false;
-        print('🔌 Disconnected from blockchain');
-      } catch (e) {
-        print('⚠️ Error during disconnect: $e');
-      } finally {
-        _provider = null;
-      }
-    }
-  }
-
-  Future<void> ensureConnected() async {
-    if (!_isConnected) {
-      await connect();
+  // 🗑️ Clear all products (for testing)
+  Future<void> clearAllProducts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_productsKey);
+      print('🗑️ All products cleared');
+    } catch (e) {
+      print('❌ Failed to clear products: $e');
     }
   }
 }

@@ -14,10 +14,10 @@ dependencies:
   provider: ^6.1.1
   image_picker: ^1.0.7
   http: ^1.2.0
-  polkadart: ^0.4.5
-  polkadart_keyring: ^0.4.4
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.4
   qr_flutter: ^4.1.0
+  web_socket_channel: ^2.4.0  # For WebSocket connection
+  convert: ^3.1.1  # For hex encoding
 
 dev_dependencies:
   flutter_test:
@@ -27,5 +27,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/marketplace.json
+    - assets/contract/metadata.json
     
