@@ -1,4 +1,5 @@
-## 📋 Table of Contents
+</div>
+📋 Table of Contents
 
 Project Description
 System Architecture
@@ -11,646 +12,442 @@ Local Development Setup
 Hackathon Notes
 Future Improvements
 
-## 🎯 Project Description
 
-### What It Does
-
-This decentralized marketplace enables users to:
-
-List products with images and metadata
-Purchase products using blockchain-based transactions
-Store product images on IPFS for permanent, decentralized access
-Record ownership and transactions immutably on the Polkadot blockchain
-
-### The Problem It Solves
-
-Traditional e-commerce platforms face critical trust and centralization issues:
-
-Centralized Control: Platforms can arbitrarily remove listings, freeze accounts, or change terms
-Data Ownership: Users don't control their data; platforms do
-High Fees: Intermediaries extract significant transaction fees
-Single Point of Failure: Server outages can halt all operations
-Censorship: Platforms can censor content based on location or policy
-
-### Why Web3 & Decentralization
-
-Our solution leverages blockchain and decentralized storage to address these issues:
-
-Immutable Ownership Records: Polkadot blockchain ensures tamper-proof transaction history
-Decentralized Storage: IPFS guarantees content availability without relying on centralized servers
-Trustless Transactions: Smart contracts enable peer-to-peer exchanges without intermediaries
-Censorship Resistance: No single entity can remove listings or ban users
-Data Sovereignty: Users maintain control over their content and transactions
-
-## 🏗️ System Architecture
-
-### High-Level Overview
-
-┌─────────────────┐
-│                 │
-│  Flutter App    │  ◄── Cross-platform mobile interface
-│  (Frontend)     │      (iOS, Android, Web, Desktop)
-│                 │
-└────────┬────────┘
-│
-│ REST API (HTTP/JSON)
-│
-▼
-┌─────────────────┐
-│                 │
-│  Rust Backend   │  ◄── Secure middleware layer
-│  (API Server)   │      Handles external integrations
-│                 │      Manages secrets & API keys
-└────────┬────────┘
-│
-├──────────────────────┬─────────────────────┐
-│                      │                     │
-▼                      ▼                     ▼
-┌──────────────┐       ┌──────────────┐      ┌──────────────┐
-│              │       │              │      │              │
-│ Pinata IPFS  │       │  Polkadot    │      │   Smart      │
-│   Gateway    │       │  Blockchain  │      │  Contracts   │
-│              │       │    Node      │      │   (ink!)     │
-└──────────────┘       └──────────────┘      └──────────────┘
-│                        │                      │
-│                        │                      │
-└────────────────────────┴──────────────────────┘
-│
-▼
-Decentralized
-Infrastructure
-
-### Component Interaction Flow
-
-User Action: User uploads product image via Flutter app
-API Request: Flutter sends image (base64) to Rust backend via REST API
-IPFS Upload: Rust backend uploads image to Pinata (IPFS gateway)
-IPFS Hash: Pinata returns content identifier (CID) - e.g., QmXxx...
-Blockchain Transaction: Rust backend calls ink! smart contract with product metadata + IPFS hash
-On-Chain Storage: Smart contract stores: product ID, owner address, price, IPFS CID
-Response: Backend returns success + transaction hash to Flutter
-UI Update: Flutter displays product with image loaded from IPFS gateway
-
-## 🦀 Rust Backend (Middleware Layer)
-
-### Why a Backend in Web3?
-
-While Web3 emphasizes decentralization, production systems require a secure middleware layer for several critical reasons:
-
-Security
-
-API Key Management: Pinata API keys must never be exposed in client applications
-Transaction Signing: Private keys for blockchain interactions must remain server-side
-Rate Limiting: Protects against abuse of external APIs (Pinata, Polkadot RPC)
-
-Abstraction
-
-Simplified Mobile App: Flutter doesn't need blockchain SDK complexity
-Consistent API: Backend provides REST endpoints familiar to mobile developers
-Error Handling: Centralized error management and retry logic
-
-Performance
-
-Caching: Backend can cache IPFS gateway responses and blockchain queries
-Batch Operations: Can group multiple blockchain transactions efficiently
-Connection Pooling: Maintains persistent connections to Polkadot node
-
-### Architecture Explanation (Judge-Friendly)
-
-The Rust backend acts as secure middleware between the Flutter app, Polkadot blockchain, and IPFS via Pinata.
-It handles image uploads to IPFS, manages API keys securely, submits and queries smart contract transactions, and exposes clean REST APIs for the mobile app. This enables a production-style Web3 architecture where sensitive operations and external integrations are handled safely in Rust.
-Without this layer, the mobile app would need to:
-
-Embed Pinata API keys (security risk)
-Implement complex SCALE codec for contract calls (high complexity)
-Manage blockchain transaction signing (key management nightmare)
-Handle WebSocket connections to Polkadot node (battery drain on mobile)
-
-By centralizing these concerns in a Rust backend, we achieve enterprise-grade security while keeping the mobile app lightweight and maintainable.
-
-### Backend Responsibilities
-
-1. IPFS Integration
-   rust// Upload image to Pinata
-   POST /api/upload/image
-
-* Receives base64-encoded image from Flutter
-* Uploads to Pinata IPFS gateway
-* Returns IPFS CID (content identifier)
-
-2. Blockchain Interaction
-   rust// Submit contract transaction
-
-* Encodes function calls using SCALE codec
-* Signs transactions with backend-managed account
-* Submits to Polkadot node via WebSocket
-* Polls for transaction finalization
-* Returns transaction hash to client
-
-3. API Exposure
-   rust// RESTful endpoints for Flutter
-   GET  /api/products         // List all products
-   POST /api/products         // Create new product
-   GET  /api/products/:id     // Get product details
-   POST /api/products/:id/buy // Purchase product
-
-```
-
-#### 4. **Secret Management**
-- **Environment Variables**: Loads `.env` file with Pinata JWT, Polkadot seed phrases
-- **Never Exposes**: Secrets are never returned in API responses
-- **Validation**: Checks for required secrets on startup
-
-### Technology Stack
-
-- **Framework**: Actix-web (high-performance async HTTP server)
-- **HTTP Client**: Reqwest (for Pinata API calls)
-- **Blockchain**: Polkadot-js alternative (WebSocket connection to node)
-- **Serialization**: Serde (JSON parsing)
-- **Base64 Handling**: base64 crate (image encoding/decoding)
-
----
-
-## 🗂️ IPFS & Pinata Integration
-
-### What is IPFS?
-
-**InterPlanetary File System (IPFS)** is a peer-to-peer distributed file system that makes content:
-- **Content-Addressed**: Files are identified by cryptographic hash (CID), not location
-- **Permanent**: Content cannot be altered without changing its CID
-- **Decentralized**: No single server hosts the content
-- **Efficient**: Deduplication ensures identical files share the same CID
-
-### What is Pinata?
-
-**Pinata** is an IPFS pinning service that:
-- Provides reliable IPFS gateways for content retrieval
-- Ensures uploaded content remains available (prevents garbage collection)
-- Offers APIs for easy integration
-- Handles IPFS infrastructure so we don't need to run our own nodes
-
-### Why IPFS for Images?
-
-Storing images directly on blockchain is impractical because:
-
-| Storage Method | Cost | Speed | Suitability |
-|---------------|------|-------|-------------|
-| **On-Chain** | $10,000+ per MB | Slow | ❌ Prohibitively expensive |
-| **Centralized Server** | $5/month | Fast | ⚠️ Single point of failure |
-| **IPFS** | $0.15/GB/month | Fast | ✅ Decentralized & affordable |
-
-### Upload Flow
-```
-
-┌─────────┐         ┌──────────┐        ┌─────────┐
-│ Flutter │         │   Rust   │        │ Pinata  │
-│   App   │         │ Backend  │        │  IPFS   │
-└────┬────┘         └────┬─────┘        └────┬────┘
-│                   │                   │
-│ 1. POST /upload   │                   │
-├──────────────────>│                   │
-│  {image_base64}   │                   │
-│                   │ 2. Upload file    │
-│                   ├──────────────────>│
-│                   │                   │
-│                   │ 3. Return CID     │
-│                   │<──────────────────┤
-│                   │  QmXxx...         │
-│ 4. Return CID     │                   │
-│<──────────────────┤                   │
-│  {ipfs_hash}      │                   │
-│                   │                   │
-
-```
-
-### Retrieval
-
-Images are accessed via Pinata's public gateway:
-```
-
-[https://gateway.pinata.cloud/ipfs/{CID}](https://gateway.pinata.cloud/ipfs/{CID})
-
-```
-
-For example:
-```
-
-[https://gateway.pinata.cloud/ipfs/QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7](https://gateway.pinata.cloud/ipfs/QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7)
-This URL is:
-
-Permanent: CID never changes if content doesn't change
-Verifiable: Anyone can hash the content and verify the CID
-Decentralized: Can be accessed through any IPFS gateway, not just Pinata
-
-## ⛓️ Blockchain & Smart Contracts
-
-Role of Polkadot
-Polkadot is a next-generation blockchain that provides:
-
-Interoperability: Parachains can communicate with each other
-Scalability: Shared security model across multiple chains
-Upgradability: On-chain governance without hard forks
-Substrate Framework: Allows custom blockchain development
-
-We use Polkadot for:
-
-Immutable Transaction Records: All product listings and purchases are permanently recorded
-Trustless Execution: Smart contracts enforce rules without intermediaries
-Transparent History: Anyone can verify ownership and transaction history
-
-Smart Contract (ink!)
-ink! is Rust-based smart contract language for Polkadot that compiles to WebAssembly (Wasm).
-Contract Responsibilities
-rust#[ink::contract]
-mod marketplace {
-#[ink(storage)]
-pub struct Marketplace {
-products: Mapping<ProductId, Product>,
-product_count: u64,
-}
-
-```
-#[ink(message)]
-pub fn list_product(
-    &mut self,
-    name: String,
-    description: String,
-    price: Balance,
-    ipfs_hash: String,  // ◄── IPFS CID stored here
-) -> Result<ProductId> {
-    // Logic to create product
-}
-
-#[ink(message)]
-pub fn purchase_product(
-    &mut self,
-    product_id: ProductId,
-) -> Result<()> {
-    // Logic to transfer ownership
-}
-```
-
-}
-On-Chain vs Off-Chain Data
-Data TypeStorage LocationReasonProduct IDOn-ChainSmall, critical for indexingProduct NameOn-ChainLightweight textPriceOn-ChainRequired for payment logicOwner AddressOn-ChainRequired for ownership verificationIPFS Hash (CID)On-Chain46 bytes, links to off-chain dataProduct ImageOff-Chain (IPFS)Large binary data (KB-MB)DescriptionOn-ChainOptional metadataTransaction HistoryOn-ChainImmutable audit trail
-Backend ↔ Smart Contract Interaction
-The Rust backend interacts with the smart contract via:
-
-SCALE Codec Encoding: Converts function calls to byte format
-
-rust   let call_data = encode_call("list_product", (name, description, price, ipfs_hash));
-
-WebSocket RPC: Sends transaction to Polkadot node
-
-rust   let tx_hash = rpc_client.submit_extrinsic(call_data).await?;
-
-Event Listening: Monitors blockchain for transaction finalization
-
-rust   let result = wait_for_block(tx_hash).await?;
-
-Query State: Reads smart contract storage
-
-rust   let products = rpc_client.query_storage("products").await?;
-
-## 🔌 API Layer
-
-Backend → Frontend Communication
-The Rust backend exposes a RESTful JSON API that Flutter consumes.
-Endpoints
-
-1. Upload Product Image
-   httpPOST /api/upload/image
-   Content-Type: application/json
-
-{
-"image_base64": "iVBORw0KGgoAAAANSUhEUgAA...",
-"file_name": "product.jpg"
-}
-Response:
-json{
-"success": true,
-"ipfs_hash": "QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7",
-"gateway_url": "[https://gateway.pinata.cloud/ipfs/QmUNy](https://gateway.pinata.cloud/ipfs/QmUNy)..."
-}
-2. List Product
-httpPOST /api/products
+🎯 Project Description
+What It Does
+A decentralized marketplace where users can:
+
+✅ List products with images stored on IPFS
+✅ Purchase items using blockchain transactions
+✅ Verify ownership through immutable records
+✅ Access content without centralized servers
+
+The Problem It Solves
+<table>
+<tr>
+<td width="25%"><b>❌ Centralized Control</b><br>Platforms remove listings arbitrarily</td>
+<td width="25%"><b>❌ High Fees</b><br>15-30% transaction fees</td>
+<td width="25%"><b>❌ Data Ownership</b><br>Users don't control their data</td>
+<td width="25%"><b>❌ Single Point of Failure</b><br>Server outages halt operations</td>
+</tr>
+</table>
+Our Solution
+<table>
+<tr>
+<th>🔗 Polkadot</th>
+<th>📁 IPFS</th>
+<th>🦀 Rust</th>
+<th>📱 Flutter</th>
+</tr>
+<tr>
+<td>Immutable transaction records</td>
+<td>Decentralized file storage</td>
+<td>Secure middleware</td>
+<td>Cross-platform UI</td>
+</tr>
+</table>
+
+🏗️ System Architecture
+High-Level Overview
+<table>
+<tr>
+<td width="33%" align="center">
+<b>📱 FLUTTER APP</b><br>
+Cross-platform mobile interface<br>
+(iOS, Android, Web, Desktop)
+</td>
+<td width="33%" align="center">
+<b>🦀 RUST BACKEND</b><br>
+Secure middleware layer<br>
+Handles external integrations
+</td>
+<td width="33%" align="center">
+<b>🌐 DECENTRALIZED</b><br>
+IPFS • Polkadot • Smart Contracts
+</td>
+</tr>
+</table>
+Architecture Diagram
+┌──────────────┐
+│ Flutter App  │  ← User Interface
+└──────┬───────┘
+       │ REST API
+       ↓
+┌──────────────┐
+│ Rust Backend │  ← Secure Middleware
+└──┬─────┬─────┘
+   │     │
+   ↓     ↓
+┌──────┐ ┌──────────┐
+│ IPFS │ │ Polkadot │  ← Decentralized Infrastructure
+└──────┘ └──────────┘
+Component Interaction Flow
+Step 1: User Uploads Product
+📱 Flutter App → Selects image → Compresses to 800x800 @ 70% quality
+Step 2: Image to IPFS
+📱 Flutter → 🦀 Rust Backend → 📁 IPFS (Pinata) → Returns CID: QmXxx...
+Step 3: Metadata to Blockchain
+🦀 Rust Backend → Encodes transaction → ⛓️ Polkadot → Smart Contract stores data
+Step 4: Product Listed
+📱 Flutter App → Displays product → Loads image from IPFS gateway
+
+🦀 Rust Backend (Middleware Layer)
+Why a Backend in Web3?
+<table>
+<tr>
+<th width="50%">❌ Without Backend (Typical Demo)</th>
+<th width="50%">✅ With Rust Backend (Production)</th>
+</tr>
+<tr>
+<td valign="top">
+- API keys exposed in mobile app<br>
+- Reverse engineering risk<br>
+- No rate limiting<br>
+- Complex blockchain SDK in Flutter<br>
+- Battery drain from WebSocket connections
+</td>
+<td valign="top">
+- Secrets stored server-side only<br>
+- Secure key management<br>
+- Request throttling & validation<br>
+- Clean REST API for Flutter<br>
+- Efficient HTTP calls
+</td>
+</tr>
+</table>
+Backend Responsibilities
+<table>
+<tr>
+<th>🔐 Secret Management</th>
+<th>📡 API Endpoints</th>
+<th>⛓️ Blockchain Interaction</th>
+<th>🖼️ IPFS Integration</th>
+</tr>
+<tr>
+<td valign="top">
+- Pinata JWT<br>
+- Polkadot keys<br>
+- Contract addresses<br>
+- Never exposed
+</td>
+<td valign="top">
+- POST /api/upload<br>
+- POST /api/products<br>
+- GET /api/products<br>
+- POST /api/buy
+</td>
+<td valign="top">
+- SCALE encoding<br>
+- Transaction signing<br>
+- Gas fee handling<br>
+- Event listening
+</td>
+<td valign="top">
+- Image compression<br>
+- Pinata API calls<br>
+- CID management<br>
+- Gateway optimization
+</td>
+</tr>
+</table>
+
+💡 Architecture Explanation:
+The Rust backend acts as secure middleware between the Flutter app, Polkadot blockchain, and IPFS. It handles image uploads to IPFS, manages API keys securely, submits and queries smart contract transactions, and exposes clean REST APIs. This enables production-grade Web3 architecture where sensitive operations are handled safely in Rust.
+
+
+📁 IPFS & Pinata Integration
+Why Not Store Images On-Chain?
+<table>
+<tr>
+<th>Storage Method</th>
+<th>Cost per MB</th>
+<th>Speed</th>
+<th>Decentralized</th>
+</tr>
+<tr>
+<td><b>Polkadot On-Chain</b></td>
+<td>💸 $10,000+</td>
+<td>🐌 Slow</td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td><b>AWS S3</b></td>
+<td>💰 $0.023</td>
+<td>⚡ Fast</td>
+<td>❌ No</td>
+</tr>
+<tr>
+<td><b>IPFS (Pinata)</b></td>
+<td>💵 $0.15</td>
+<td>⚡ Fast</td>
+<td>✅ Yes</td>
+</tr>
+</table>
+How IPFS Works
+Traditional Web (Location-Based)
+https://myserver.com/images/product.jpg
+❌ Server down = image lost
+IPFS (Content-Addressed)
+ipfs://QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7
+✅ Permanent, verifiable, decentralized
+Upload Flow
+<table>
+<tr>
+<th>Step 1</th>
+<th>Step 2</th>
+<th>Step 3</th>
+<th>Step 4</th>
+</tr>
+<tr>
+<td>📱 Flutter sends base64 image</td>
+<td>🦀 Backend uploads to Pinata</td>
+<td>📁 Pinata returns CID</td>
+<td>🦀 Backend returns hash to Flutter</td>
+</tr>
+</table>
+Gateway URL:
+https://gateway.pinata.cloud/ipfs/{CID}
+
+⛓️ Blockchain & Smart Contracts
+What Lives Where
+<table>
+<tr>
+<th>📦 On-Chain (Blockchain)</th>
+<th>📁 Off-Chain (IPFS)</th>
+</tr>
+<tr>
+<td valign="top">
+- Product ID<br>
+- Owner address<br>
+- Price in DOT<br>
+- IPFS hash (CID)<br>
+- Availability status<br>
+- Created timestamp
+</td>
+<td valign="top">
+- Product image (2-5 MB)<br>
+- High-resolution photos<br>
+- Image metadata<br>
+- EXIF data
+</td>
+</tr>
+</table>
+Smart Contract Functions
+rust// List a new product
+listProduct(name, description, price, ipfsHash) → ProductID
+
+// Purchase a product
+purchaseProduct(productId) → Transfers ownership + DOT
+
+// Query product details
+getProduct(productId) → Returns product struct
+
+// Get all products
+getAllProducts() → Returns array of products
+Why Polkadot?
+<table>
+<tr>
+<td><b>🔗 Interoperability</b><br>Parachains communicate seamlessly</td>
+<td><b>⚡ Scalability</b><br>Shared security across chains</td>
+<td><b>🔄 Upgradability</b><br>On-chain governance</td>
+</tr>
+</table>
+
+🔌 API Layer
+REST Endpoints
+<table>
+<tr>
+<th>Endpoint</th>
+<th>Method</th>
+<th>Purpose</th>
+</tr>
+<tr>
+<td><code>/api/upload/image</code></td>
+<td>POST</td>
+<td>Upload product image to IPFS</td>
+</tr>
+<tr>
+<td><code>/api/products</code></td>
+<td>POST</td>
+<td>List new product on blockchain</td>
+</tr>
+<tr>
+<td><code>/api/products</code></td>
+<td>GET</td>
+<td>Fetch all products</td>
+</tr>
+<tr>
+<td><code>/api/products/:id/buy</code></td>
+<td>POST</td>
+<td>Purchase product</td>
+</tr>
+</table>
+Example: Upload Image
+Request:
+httpPOST /api/upload/image
 Content-Type: application/json
 
 {
-"name": "Organic Mangoes",
-"description": "Fresh from Kenya",
-"price": "100000000000",
-"ipfs_hash": "QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7"
+  "image_base64": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "file_name": "product.jpg"
 }
 Response:
 json{
-"success": true,
-"product_id": 1,
-"transaction_hash": "0x5c8d...",
-"block_number": 12345
+  "success": true,
+  "ipfs_hash": "QmUNyjtUTFMq1PjQadUz3VsJfTcXeqUmfx5ySKSgoXEGt7",
+  "gateway_url": "https://gateway.pinata.cloud/ipfs/QmUNy..."
 }
-3. Get All Products
-httpGET /api/products
-Response:
-json{
-"products": [
-{
-"id": 1,
-"name": "Organic Mangoes",
-"price": "100000000000",
-"ipfs_hash": "QmUNy...",
-"owner": "5GrwvaEF...",
-"is_available": true
-}
-]
-}
-4. Purchase Product
-httpPOST /api/products/:id/buy
-Content-Type: application/json
 
-{
-"buyer_address": "5FHneW46..."
-}
-Response:
-json{
-"success": true,
-"transaction_hash": "0x8a2f...",
-"new_owner": "5FHneW46..."
-}
-Flutter HTTP Client
-Flutter consumes these APIs using the http package:
-dart// Upload image
-final response = await http.post(
-Uri.parse('[http://127.0.0.1:8080/api/upload/image](http://127.0.0.1:8080/api/upload/image)'),
-headers: {'Content-Type': 'application/json'},
-body: json.encode({
-'image_base64': base64Image,
-'file_name': 'product.jpg',
-}),
-);
+🔒 Security Considerations
+Three-Layer Security Model
+<table>
+<tr>
+<th>Layer 1: Client (Flutter)</th>
+<th>Layer 2: Backend (Rust)</th>
+<th>Layer 3: Blockchain</th>
+</tr>
+<tr>
+<td>🔓 Public<br>No secrets stored</td>
+<td>🔐 Private<br>Manages all secrets</td>
+<td>🔒 Immutable<br>Cryptographically secured</td>
+</tr>
+</table>
+Why This Matters
+Security RiskOur MitigationAPI Key ExposureKeys never leave backend .envTransaction TamperingBackend signs with private keyReplay AttacksNonce management in backendRate Limiting100 requests/min per IPInput ValidationSanitization at every layer
 
-final data = json.decode(response.body);
-final ipfsHash = data['ipfs_hash'];
-
-## 🔒 Security Considerations
-
-Why API Keys Never Touch Flutter
-Critical Security Principle: Secrets embedded in mobile apps are not secure.
-RiskConsequenceAPK DecompilationAPI keys extracted via reverse engineeringMemory InspectionKeys readable in device RAMNetwork SniffingKeys exposed if app makes direct API callsSource ControlAccidentally committed keys in Git history
-Backend-Managed Secrets
-The Rust backend stores sensitive data in .env files:
-bash# backend/.env
-PINATA_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-POLKADOT_SEED_PHRASE=//Alice
-CONTRACT_ADDRESS=5GTwSbGWYsuyMn5Ni8FnPd6Autpt4LKYYuyTcK95FRNvFSYJ
-
-```
-
-These secrets:
-- ✅ Never appear in API responses
-- ✅ Never sent to client
-- ✅ Only accessible to backend process
-- ✅ Excluded from version control (`.gitignore`)
-
-### Transaction Signing
-
-**Why Backend Signs Transactions**:
-
-1. **Private Key Security**: Signing requires private keys that must never leave the server
-2. **Account Management**: Backend controls accounts with funded balances
-3. **Gas Fee Handling**: Backend pays transaction fees on behalf of users
-4. **Nonce Management**: Prevents replay attacks by tracking transaction counts
-
-**Flow**:
-```
-
-Flutter → "List product X"
-↓
-Backend → "I will create the transaction"
-→ Loads private key from secure storage
-→ Signs transaction
-→ Submits to blockchain
-→ Returns transaction hash
-↓
-Flutter ← "Transaction submitted: 0x5c8d..."
-Rate Limiting & Abuse Prevention
-The backend implements:
-
-Request throttling: Max 100 requests per minute per IP
-File size limits: Max 5MB for image uploads
-Input validation: Sanitizes all user input
-CORS policies: Restricts API access to known origins
-
-## 🛠️ Local Development Setup
-
+📦 Quick Start
 Prerequisites
-
-Flutter SDK: 3.0+ (install guide)
-Rust: 1.70+ (install guide)
-Substrate Contracts Node: (install guide)
-Cargo Contract: cargo install cargo-contract
-Pinata Account: Free tier (sign up)
-
+<table>
+<tr>
+<td><b>🎯 Flutter</b><br>v3.0+</td>
+<td><b>🦀 Rust</b><br>v1.70+</td>
+<td><b>⛓️ Substrate Node</b><br>Latest</td>
+<td><b>📦 Cargo Contract</b><br>Latest</td>
+</tr>
+</table>
+Installation Steps
 1. Clone Repository
-   bashgit clone [https://github.com/yourusername/polkadot-marketplace.git](https://github.com/yourusername/polkadot-marketplace.git)
-   cd polkadot-marketplace
-2. Start Polkadot Node
-   bashsubstrate-contracts-node --dev
-   This starts a local development blockchain at ws://127.0.0.1:9944.
+bashgit clone https://github.com/yourusername/polkadot-marketplace.git
+cd polkadot-marketplace
+2. Start Blockchain Node
+bashsubstrate-contracts-node --dev
+# Running at ws://127.0.0.1:9944
 3. Deploy Smart Contract
-   bashcd polkadot_contracts/marketplace
-   cargo contract build --release
-   Deploy via ui.use.ink:
-
-Upload target/ink/marketplace.contract
-Instantiate contract
-Copy contract address
-
+bashcd polkadot_contracts/marketplace
+cargo contract build --release
+# Upload to ui.use.ink
 4. Configure Backend
-   bashcd backend/polkadot_marketplace_backend
-   Create .env file:
-   bashPINATA_JWT=your_pinata_jwt_token_here
-   PINATA_API_KEY=your_pinata_api_key
-   PINATA_SECRET_KEY=your_pinata_secret_key
-   POLKADOT_NODE_URL=ws://127.0.0.1:9944
-   CONTRACT_ADDRESS=5GTwSbGWYsuyMn5Ni8FnPd6Autpt4LKYYuyTcK95FRNvFSYJ
-   Get Pinata Credentials:
-
-Go to Pinata Dashboard
-API Keys → New Key → Create
-Copy JWT token
-
+bashcd ../../backend/polkadot_marketplace_backend
+echo "PINATA_JWT=your_jwt_here" > .env
+echo "CONTRACT_ADDRESS=5GTw..." >> .env
 5. Start Backend
-   bashcargo run
-   Server runs at [http://127.0.0.1:8080](http://127.0.0.1:8080).
-   Verify:
-   bashcurl [http://127.0.0.1:8080/api/health](http://127.0.0.1:8080/api/health)
-
-# Expected: {"status":"ok"}
-
+bashcargo run
+# Server at http://127.0.0.1:8080
 6. Run Flutter App
-   bashcd ../../  # Back to project root
-   flutter pub get
-   flutter run -d linux  # or ios, android, web
+bashcd ../..
+flutter pub get
+flutter run -d linux
 
-```
+🎯 Hackathon Notes
+Why This Project Stands Out
+<table>
+<tr>
+<th>Aspect</th>
+<th>Implementation</th>
+<th>Impact</th>
+</tr>
+<tr>
+<td><b>🏗️ Architecture</b></td>
+<td>Proper separation with Rust middleware</td>
+<td>Production-ready, not demo</td>
+</tr>
+<tr>
+<td><b>🔒 Security</b></td>
+<td>No client secrets, server-side signing</td>
+<td>Enterprise-grade</td>
+</tr>
+<tr>
+<td><b>⚡ Performance</b></td>
+<td>IPFS for files, blockchain for state</td>
+<td>Fast despite decentralization</td>
+</tr>
+<tr>
+<td><b>🧩 Tech Stack</b></td>
+<td>Flutter + Rust + ink! + IPFS</td>
+<td>Demonstrates versatility</td>
+</tr>
+</table>
 
-### Project Structure
-```
+🚀 Future Improvements
+Phase 1: Production Ready
 
-polkadot_marketplace/
-├── lib/                          # Flutter app
-│   ├── models/                   # Data models
-│   ├── features/
-│   │   ├── home/                 # Home screen & product listing
-│   │   └── services/             # API clients
-│   └── main.dart
-├── backend/
-│   └── polkadot_marketplace_backend/
-│       ├── src/
-│       │   ├── main.rs           # Server entry point
-│       │   └── routes/
-│       │       └── upload.rs     # IPFS upload endpoint
-│       ├── Cargo.toml
-│       └── .env                  # Secrets (not committed)
-├── polkadot_contracts/
-│   └── marketplace/
-│       ├── lib.rs                # ink! smart contract
-│       └── Cargo.toml
-└── README.md
+✅ JWT authentication
+✅ Wallet integration
+✅ On-chain DOT payments
+✅ Search & filtering
 
-## 🎯 Hackathon Notes
+Phase 2: Feature Expansion
 
-Why This Architecture Matters
-This project demonstrates production-grade Web3 engineering through:
+🔄 Dispute resolution
+🔄 IPNS support
+🔄 Reputation system
+🔄 Analytics dashboard
 
-1. Separation of Concerns
+Phase 3: Ecosystem
 
-Flutter: User interface and experience
-Rust Backend: Security, API management, external integrations
-Smart Contracts: Trustless business logic and state management
-IPFS: Decentralized content delivery
+🚧 Parachain deployment
+🚧 NFT integration
+🚧 Cross-chain payments
+🚧 DAO governance
 
-2. Real-World Scalability
 
-Backend can be horizontally scaled (load balancer + multiple instances)
-IPFS provides CDN-like performance for images
-Blockchain handles state consensus without central coordination
+📊 Tech Stack
+<table>
+<tr>
+<th>Layer</th>
+<th>Technology</th>
+<th>Purpose</th>
+</tr>
+<tr>
+<td><b>Frontend</b></td>
+<td>Flutter 3.0+</td>
+<td>Cross-platform mobile UI</td>
+</tr>
+<tr>
+<td><b>Backend</b></td>
+<td>Rust (Actix-web)</td>
+<td>Secure API server</td>
+</tr>
+<tr>
+<td><b>Blockchain</b></td>
+<td>Polkadot (Substrate)</td>
+<td>Consensus & state</td>
+</tr>
+<tr>
+<td><b>Smart Contracts</b></td>
+<td>ink! v5 (Rust)</td>
+<td>Business logic</td>
+</tr>
+<tr>
+<td><b>Storage</b></td>
+<td>IPFS (Pinata)</td>
+<td>Decentralized files</td>
+</tr>
+</table>
 
-3. Security-First Design
+📄 License
+MIT License © 2026 - See LICENSE for details
 
-No secrets in client code
-Server-side transaction signing
-Input validation at every layer
+📞 Contact
+<div align="center">
+Show Image
+Show Image
+Show Image
+</div>
 
-4. Technology Diversity
+<div align="center">
+⭐ Star this repo if you found it helpful! ⭐
+Built with ❤️ for Web3
+</div>
 
-Flutter: Cross-platform mobile development
-Rust: Memory-safe systems programming
-ink!: WebAssembly smart contracts
-Polkadot: Next-gen blockchain interoperability
-
-Not Just a Demo
-Unlike typical hackathon projects that hardcode values or skip security, this project:
-
-✅ Uses real IPFS (not mock storage)
-✅ Deploys actual smart contracts (not simulated)
-✅ Implements proper secret management
-✅ Handles errors gracefully
-✅ Follows REST API best practices
-✅ Includes transaction confirmation flows
-
-Judge Evaluation Criteria
-CriteriaHow This Project Addresses ItTechnical ComplexityMulti-language stack (Dart, Rust, ink!), blockchain integration, IPFSInnovationCombines Polkadot + IPFS for true decentralizationCompletenessFull end-to-end flow from upload → IPFS → blockchain → displaySecurityBackend middleware pattern, no client-side secretsScalabilitySeparation allows independent scaling of each componentUXSmooth mobile app experience despite blockchain complexity
-
-## 🚀 Future Improvements
-
-Short-Term (Production Readiness)
-
-1. User Authentication
-
-JWT-based auth: Secure API access with tokens
-Wallet signing: Authenticate users by signing messages with their private keys
-Session management: Maintain user state across requests
-
-2. Wallet Integration
-
-Polkadot.js Extension: Browser wallet support
-WalletConnect: Mobile wallet connectivity
-Hardware Wallets: Ledger/Trezor integration for high-value transactions
-
-3. On-Chain Payments
-
-Native DOT Transfers: Use Polkadot's balance pallet
-Escrow Contracts: Hold funds until delivery confirmation
-Multi-Signature Wallets: Require multiple approvals for large purchases
-
-4. Search & Filtering
-
-Backend Indexing: Postgres database for fast product queries
-Full-Text Search: Elasticsearch for product name/description search
-Price Range Filters: Query optimization for price-based sorting
-
-Medium-Term (Feature Expansion)
-5. Dispute Resolution
-
-Arbitration DAO: Community voting on disputes
-Reputation System: Track buyer/seller reliability on-chain
-Refund Mechanisms: Time-locked refund logic in smart contracts
-
-6. Advanced IPFS Features
-
-IPNS (Mutable Pointers): Update product images without changing contract state
-IPFS Cluster: Self-hosted pinning service for redundancy
-Encryption: Private product listings with decryption keys
-
-7. Analytics Dashboard
-
-Transaction Metrics: Track sales volume, active users
-Gas Fee Monitoring: Optimize contract calls for cost efficiency
-IPFS Performance: Monitor gateway response times
-
-Long-Term (Ecosystem Integration)
-8. Parachain Deployment
-
-Custom Parachain: Deploy marketplace as dedicated Polkadot parachain
-Governance Token: Community-driven feature voting
-Cross-Chain Transfers: Accept payments from other parachains
-
-9. NFT Integration
-
-Product Certificates: Issue NFTs as proof of ownership
-Collectibles Marketplace: Extend to rare/limited items
-Royalty System: Original sellers earn from secondary sales
-
-10. AI & ML Features
-
-Fraud Detection: ML models to identify suspicious listings
-Price Recommendations: AI suggests optimal pricing
-Personalized Feed: Recommendation algorithm for products
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
-
-## 👥 Contributors
-
-Your Name - Full-Stack Web3 Development
-Team Member 2 - Smart Contract Development
-Team Member 3 - Mobile UI/UX
-
-## 🙏 Acknowledgments
-
-Polkadot for next-gen blockchain infrastructure
-Pinata for reliable IPFS hosting
-Parity Technologies for ink! smart contract framework
-Flutter Team for cross-platform development tools
-
-## 📞 Contact
-
-For questions or collaboration opportunities:
-
-Email: [your.email@example.com](mailto:your.email@example.com)
-GitHub: @yourusername
-LinkedIn: Your Name
-Twitter: @yourhandle
+This version:
