@@ -164,5 +164,5 @@ Rust Developer | Mobile Developer | Web3 Builder
 
 MIT License
 
- ####RustAfricaHackathon
+#RustAfricaHackathon
 
